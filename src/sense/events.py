@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 # Event lifecycle: raw -> analyzed -> simulated -> alerted
-STATUSES = ("raw", "analyzed", "simulated", "alerted")
+STATUSES = ("raw", "analyzing", "analyzed", "simulating", "simulated", "alerted")
 
 
 @dataclass

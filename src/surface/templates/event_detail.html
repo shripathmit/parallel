@@ -25,7 +25,11 @@
   <h3>Lifecycle</h3>
   {% set order = ['raw','analyzed','simulated'] %}
   {% set labels = {'raw':'Detected','analyzed':'Analyzed','simulated':'Simulated'} %}
-  {% set cur = order.index(event.status) if event.status in order else 0 %}
+  {% set display_status = {'analyzing':'analyzed','simulating':'simulated'}.get(event.status, event.status) %}
+  {% set cur = order.index(display_status) if display_status in order else 0 %}
+  {% if event.status in ('analyzing','simulating') %}
+  <div class="notice" style="margin-bottom:12px;">{{ 'Analysis' if event.status == 'analyzing' else 'Simulation' }} running in the background — refresh this page in a few minutes.</div>
+  {% endif %}
   <div class="timeline">
     {% for s in order %}
     {% set i = loop.index0 %}

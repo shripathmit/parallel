@@ -13,7 +13,7 @@ import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, Form, HTTPException, Request
+from fastapi import BackgroundTasks, FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -346,8 +346,41 @@ def ui_event_detail(
     )
 
 
+def _run_analysis_bg(event_id: str):
+    """Background worker: run live analysis and persist it (never raises)."""
+    try:
+        event = store.get(event_id)
+        if not event:
+            return
+        analysis = analyze_change(ParallelClient(), event)
+        _save_analysis(event_id, analysis)
+        kg.add_analysis(event, analysis)
+        kg.save(KG_PATH)
+        store.mark_processed(event_id, "analyzed")
+        maybe_alert(analysis, settings)
+    except Exception as exc:  # persist the failure where the UI can show it
+        _save_analysis(event_id, {"error": str(exc)})
+        store.mark_processed(event_id, "raw")
+
+
+def _run_simulation_bg(event_id: str):
+    """Background worker: run clone simulation and persist it (never raises)."""
+    try:
+        analysis = _load_analysis(event_id)
+        if not analysis or analysis.get("error"):
+            store.mark_processed(event_id, "analyzed")
+            return
+        client = ParallelClient()
+        result = run_simulation(client, analysis, clones=_build_clones(client, analysis))
+        _save_simulation(event_id, result)
+        store.mark_processed(event_id, "simulated")
+    except Exception as exc:
+        _save_simulation(event_id, {"error": str(exc)})
+        store.mark_processed(event_id, "analyzed")
+
+
 @app.post("/ui/events/{event_id}/analyze")
-def ui_analyze_event(event_id: str):
+def ui_analyze_event(event_id: str, background: BackgroundTasks):
     event = store.get(event_id)
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
@@ -366,24 +399,23 @@ def ui_analyze_event(event_id: str):
             f"/ui/events/{event_id}?error=Set PARALLEL_API_KEY to run live analysis",
             status_code=303,
         )
-    try:
-        analysis = analyze_change(ParallelClient(), event)
-    except ParallelAPIError as exc:
+    if event.status == "analyzing":
         return RedirectResponse(
-            f"/ui/events/{event_id}?error=Analysis failed: {exc}", status_code=303
+            f"/ui/events/{event_id}?notice=Analysis already running",
+            status_code=303,
         )
-    _save_analysis(event_id, analysis)
-    kg.add_analysis(event, analysis)
-    kg.save(KG_PATH)
-    store.mark_processed(event_id, "analyzed")
-    maybe_alert(analysis, settings)
+    # Long-running (Extract + Task poll for minutes): run in background so the
+    # request returns immediately instead of 502ing behind the proxy.
+    store.mark_processed(event_id, "analyzing")
+    background.add_task(_run_analysis_bg, event_id)
     return RedirectResponse(
-        f"/ui/events/{event_id}?notice=Analysis complete", status_code=303
+        f"/ui/events/{event_id}?notice=Analysis running in background — refresh in a few minutes",
+        status_code=303,
     )
 
 
 @app.post("/ui/events/{event_id}/simulate")
-def ui_simulate_event(event_id: str):
+def ui_simulate_event(event_id: str, background: BackgroundTasks):
     event = store.get(event_id)
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
@@ -405,17 +437,17 @@ def ui_simulate_event(event_id: str):
             f"/ui/events/{event_id}?error=Set PARALLEL_API_KEY to run live simulation",
             status_code=303,
         )
-    try:
-        client = ParallelClient()
-        result = run_simulation(client, analysis, clones=_build_clones(client, analysis))
-    except ParallelAPIError as exc:
+    if event.status == "simulating":
         return RedirectResponse(
-            f"/ui/events/{event_id}?error=Simulation failed: {exc}", status_code=303
+            f"/ui/events/{event_id}?notice=Simulation already running",
+            status_code=303,
         )
-    _save_simulation(event_id, result)
-    store.mark_processed(event_id, "simulated")
+    # 3 x Chat API calls take minutes: run in background to avoid proxy 502s.
+    store.mark_processed(event_id, "simulating")
+    background.add_task(_run_simulation_bg, event_id)
     return RedirectResponse(
-        f"/ui/events/{event_id}?notice=Simulation complete", status_code=303
+        f"/ui/events/{event_id}?notice=Simulation running in background — refresh in a few minutes",
+        status_code=303,
     )
 
 
