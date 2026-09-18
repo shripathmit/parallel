@@ -95,9 +95,14 @@ class ParallelClient:
 
     # ---- Extract ----
     def extract(self, url, objective):
-        """Clean markdown extraction from a URL (handles JS pages and PDFs)."""
-        # TODO: verify against docs.parallel.ai (request/response field names)
-        return self._post("/v1beta/extract", {"url": url, "objective": objective})
+        """Clean markdown extraction from a URL (handles JS pages and PDFs).
+
+        Request: {"urls": [...], "objective": ...} -> response.results[0]
+        carries excerpts[] / full_content. Verified docs.parallel.ai.
+        """
+        return self._post(
+            "/v1beta/extract", {"urls": [url], "objective": objective}
+        )
 
     # ---- Task (deep research) ----
     def task_run(self, objective, output_schema=None, webhook_url=None):

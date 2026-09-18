@@ -1,7 +1,30 @@
 """Analyze change events with the parallel.ai Task API."""
-from src.par_client import ParallelClient
+import json
+
+from src.par_client import ParallelAPIError, ParallelClient
 from src.sense.events import ChangeEvent
 from src.understand.schemas import CHANGE_ANALYSIS_SCHEMA
+
+
+def _extract_text(doc: dict) -> str:
+    """Pull usable text from an Extract API response.
+
+    Shape (docs.parallel.ai): {"results": [{"url","title","excerpts":[],
+    "full_content": ...}], "errors": [...]}. Prefer full_content, else join excerpts.
+    """
+    if not isinstance(doc, dict):
+        return ""
+    results = doc.get("results") or []
+    for r in results:
+        if not isinstance(r, dict):
+            continue
+        full = (r.get("full_content") or "").strip()
+        if full:
+            return full
+        excerpts = [e for e in (r.get("excerpts") or []) if isinstance(e, str)]
+        if excerpts:
+            return "\n\n".join(excerpts)
+    return ""
 
 
 def _analysis_objective(event: ChangeEvent, content: str) -> str:
@@ -24,7 +47,12 @@ def analyze_change(client: ParallelClient, event: ChangeEvent, poll: bool = True
             event.url,
             objective="Extract the full regulatory content: requirements, dates, scope.",
         )
-        content = doc.get("markdown", doc.get("content", "")) or ""
+        content = _extract_text(doc)
+        if not content:
+            raise ParallelAPIError(
+                f"Extract returned no usable content for {event.url}: "
+                f"{json.dumps(doc)[:500]}"
+            )
     content = content[:30000]
 
     run = client.task_run(
