@@ -1,13 +1,13 @@
 {% macro sev_pill(sev) -%}
-{%- if sev == 5 -%}<span class="pill sev5"><span class="dot"></span>Sev 5 · Critical</span>
-{%- elif sev == 4 -%}<span class="pill sev4"><span class="dot"></span>Sev 4 · High</span>
-{%- elif sev == 3 -%}<span class="pill sev3"><span class="dot"></span>Sev 3 · Medium</span>
-{%- elif sev == 2 -%}<span class="pill sev2"><span class="dot"></span>Sev 2 · Low</span>
-{%- elif sev == 1 -%}<span class="pill sev1"><span class="dot"></span>Sev 1 · Info</span>
+{%- if sev == 5 -%}<span class="pill sev5"><span class="dot"></span>Critical</span>
+{%- elif sev == 4 -%}<span class="pill sev4"><span class="dot"></span>High</span>
+{%- elif sev == 3 -%}<span class="pill sev3"><span class="dot"></span>Medium</span>
+{%- elif sev == 2 -%}<span class="pill sev2"><span class="dot"></span>Low</span>
+{%- elif sev == 1 -%}<span class="pill sev1"><span class="dot"></span>Info</span>
 {%- else -%}<span class="pill"><span class="dot"></span>Unscored</span>{%- endif -%}
 {%- endmacro %}
 {% macro status_pill(status) -%}
-<span class="pill status {{ status }}"><span class="dot"></span>{{ status }}</span>
+<span class="pill status {{ status }}"><span class="dot"></span>{{ {'analyzing':'Analyzing…','simulating':'Simulating…'}[status] if status in ('analyzing','simulating') else status }}</span>
 {%- endmacro %}
 <!DOCTYPE html>
 <html lang="en">
@@ -17,38 +17,38 @@
 <title>{% block title %}parallel{% endblock %}</title>
 <link rel="stylesheet" href="/static/style.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 </head>
 <body>
-<header class="topbar">
-  <div class="topbar-inner">
-    <a class="brand" href="/"><span class="brand-mark">P</span>parallel</a>
-    <nav class="nav">
-      <a href="/" class="{{ 'active' if active == 'home' }}">Overview</a>
-      <a href="/ui/events" class="{{ 'active' if active == 'events' }}">Events</a>
-      <a href="/ui/clones" class="{{ 'active' if active == 'clones' }}">Clones</a>
-      <a href="/ui/monitors" class="{{ 'active' if active == 'monitors' }}">Monitors</a>
-    </nav>
-    <div class="topbar-right">
-      {% if key_ok %}
-      <span class="pill ok"><span class="dot"></span>API key set</span>
-      {% else %}
-      <span class="pill warn"><span class="dot"></span>Key missing</span>
-      {% endif %}
-      <a class="btn" href="/docs" style="padding:7px 12px;font-size:12.5px;">API</a>
-    </div>
+<div class="shell">
+<aside class="sidebar">
+  <a class="brand" href="/"><span class="brand-mark">P</span><span class="brand-name">parallel</span></a>
+  <nav class="snav">
+    <a href="/" class="{{ 'active' if active == 'home' }}"><span class="ico">◈</span>Overview</a>
+    <a href="/ui/events" class="{{ 'active' if active == 'events' }}"><span class="ico">◉</span>Events</a>
+    <a href="/ui/clones" class="{{ 'active' if active == 'clones' }}"><span class="ico">⧉</span>Clones &amp; patterns</a>
+    <a href="/ui/monitors" class="{{ 'active' if active == 'monitors' }}"><span class="ico">◎</span>Monitors</a>
+  </nav>
+  <div class="sfoot">
+    {% if key_ok %}
+    <span class="pill ok"><span class="dot"></span>Live API key</span>
+    {% else %}
+    <span class="pill warn"><span class="dot"></span>No API key</span>
+    {% endif %}
+    <a class="api-link" href="/docs">API docs →</a>
   </div>
-</header>
+</aside>
+<div class="main">
 {% if demo_mode %}
 <div class="demo-banner">
-  <div class="demo-banner-inner">
-    <span class="demo-tag">DEMO DATA</span>
-    <span>You're looking at an illustrative sample built from real FDA publications. Analyses and clone predictions are synthetic. Connect your Parallel API key for live monitoring.</span>
-  </div>
+  <span class="demo-tag">DEMO DATA</span>
+  <span>Illustrative sample from real FDA publications. Analyses and predictions are synthetic. Connect a Parallel API key for live monitoring.</span>
 </div>
 {% endif %}
 <main class="page">
 {% block content %}{% endblock %}
 </main>
+</div>
+</div>
 </body>
 </html>

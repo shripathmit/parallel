@@ -247,7 +247,15 @@ def simulate_event(event_id: str):
 @app.get("/", response_class=HTMLResponse)
 def dashboard(request: Request):
     stats = _stats()
-    recent = sorted(store.list(), key=lambda e: e.detected_at, reverse=True)[:8]
+    events = sorted(store.list(), key=lambda e: e.detected_at, reverse=True)
+    recent = events[:8]
+    # Needs-attention queue: anything not fully simulated, severity first.
+    actionable = [e for e in events if e.status not in ("simulated", "alerted")]
+    queue = sorted(
+        actionable,
+        key=lambda e: (_severity_of(e.id) or 0, e.detected_at),
+        reverse=True,
+    )[:10]
     return templates.TemplateResponse(
         request,
         "index.html",
@@ -256,6 +264,7 @@ def dashboard(request: Request):
             "home",
             stats=stats,
             recent=recent,
+            queue=queue,
             sev_of=_severity_of,
             sources=FDA_SOURCES,
         ),

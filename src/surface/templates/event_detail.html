@@ -9,7 +9,7 @@
 
 <div class="badge-row">
   {{ status_pill(event.status) }}
-  {% if analysis %}{{ sev_pill(analysis.severity) }}{% endif %}
+  {% if analysis and analysis.severity %}{{ sev_pill(analysis.severity) }}{% endif %}
   {% if event.demo %}<span class="pill demo">DEMO DATA</span>{% endif %}
   <span class="pill">{{ event.change_type|replace('_',' ')|capitalize }}</span>
 </div>
@@ -21,29 +21,18 @@
   <span><a href="{{ event.url }}" target="_blank" rel="noopener">Open source ↗</a></span>
 </div>
 
-<div class="card" style="margin-top:20px;">
-  <h3>Lifecycle</h3>
-  {% set order = ['raw','analyzed','simulated'] %}
-  {% set labels = {'raw':'Detected','analyzed':'Analyzed','simulated':'Simulated'} %}
-  {% set display_status = {'analyzing':'analyzed','simulating':'simulated'}.get(event.status, event.status) %}
-  {% set cur = order.index(display_status) if display_status in order else 0 %}
-  {% if event.status in ('analyzing','simulating') %}
-  <div class="notice" style="margin-bottom:12px;">{{ 'Analysis' if event.status == 'analyzing' else 'Simulation' }} running in the background — refresh this page in a few minutes.</div>
-  {% endif %}
-  <div class="timeline">
-    {% for s in order %}
-    {% set i = loop.index0 %}
-    <div class="t-step {% if i < cur %}done{% elif i == cur %}done current{% endif %}">
-      <span class="t-dot"></span>
-      <span class="t-name">{{ labels[s] }}</span>
-    </div>
-    {% endfor %}
-  </div>
-  <div class="btn-row" style="margin-top:16px;">
-    {% if not analysis %}
+{% if event.status in ('analyzing','simulating') %}
+<div class="progress-note"><span class="spinner"></span>
+  {{ 'Analysis' if event.status == 'analyzing' else 'Simulation' }} running in the background — this page will show results on refresh. No need to re-submit.
+</div>
+{% endif %}
+
+<div class="card" style="margin-top:14px;">
+  <div class="btn-row">
+    {% if not analysis and event.status not in ('analyzing',) %}
     <form method="post" action="/ui/events/{{ event.id }}/analyze"><button class="btn primary" type="submit">Run analysis</button></form>
     {% endif %}
-    {% if analysis and not simulation %}
+    {% if analysis and not simulation and event.status not in ('simulating',) %}
     <form method="post" action="/ui/events/{{ event.id }}/simulate"><button class="btn primary" type="submit">Run clone simulation</button></form>
     {% endif %}
     {% if analysis and simulation %}
@@ -51,97 +40,183 @@
     {% endif %}
   </div>
   {% if event.demo and not key_ok %}
-  <p style="margin:10px 0 0;font-size:12.5px;color:var(--text-3);">Demo mode: running a step loads the canned demo result for this event. Connect your Parallel API key to run it live.</p>
+  <p style="margin:10px 0 0;font-size:12px;color:var(--text-3);">Demo mode: running a step loads the canned demo result. Connect a Parallel API key to run it live.</p>
   {% endif %}
 </div>
 
-<h2 class="section-title"><span class="n">1</span>What changed</h2>
-<div class="card">
-  <pre class="diff">{{ event.raw_diff or 'No diff captured for this event.' }}</pre>
+<div class="tabs" role="tablist">
+  <button class="active" data-tab="analysis" role="tab">Analysis</button>
+  <button data-tab="predictions" role="tab" {% if not simulation %}disabled style="opacity:.4;cursor:default;"{% endif %}>Predictions{% if simulation %} · 3 clones{% endif %}</button>
+  <button data-tab="evidence" role="tab">Evidence</button>
 </div>
 
-{% if analysis %}
-<h2 class="section-title"><span class="n">2</span>Analysis {% if analysis.demo %}<span class="pill demo">demo</span>{% endif %}</h2>
-<div class="card">
-  <p style="font-size:14.5px;max-width:860px;">{{ analysis.summary }}</p>
-  <dl class="kv" style="margin-top:16px;">
-    <dt>Change type</dt><dd style="text-transform:capitalize;">{{ analysis.change_type|replace('_',' ') }}</dd>
-    <dt>Severity</dt><dd>{{ sev_pill(analysis.severity) }}</dd>
-    <dt>Confidence</dt>
-    <dd>
-      <span class="conf-bar"><span class="conf-fill" style="width:{{ (analysis.confidence*100)|round(0) }}%"></span></span>
-      <span style="margin-left:8px;font-weight:650;">{{ (analysis.confidence*100)|round(0) }}%</span>
-    </dd>
-    {% if analysis.affected_product_codes %}
-    <dt>Product codes</dt>
-    <dd><div class="chips">{% for c in analysis.affected_product_codes %}<span class="chip">{{ c }}</span>{% endfor %}</div></dd>
-    {% endif %}
-    {% if analysis.affected_submission_types %}
-    <dt>Submission types</dt>
-    <dd><div class="chips">{% for c in analysis.affected_submission_types %}<span class="chip">{{ c }}</span>{% endfor %}</div></dd>
-    {% endif %}
-    {% if analysis.citations %}
-    <dt>Citations</dt>
-    <dd>
+<div class="tabpane active" id="tab-analysis">
+  {% if analysis %}
+  <p class="summary">{{ analysis.summary }}</p>
+  <div class="card" style="margin-top:14px;">
+    <dl class="kv">
+      <dt>Change type</dt><dd style="text-transform:capitalize;">{{ analysis.change_type|replace('_',' ') }}</dd>
+      <dt>Severity</dt><dd>{{ sev_pill(analysis.severity) }}</dd>
+      <dt>Confidence</dt>
+      <dd>
+        <span class="conf-bar"><span class="conf-fill" style="width:{{ (analysis.confidence*100)|round(0) }}%"></span></span>
+        <span style="margin-left:8px;font-weight:650;">{{ (analysis.confidence*100)|round(0) }}%</span>
+      </dd>
+      {% if analysis.affected_product_codes %}
+      <dt>Product codes</dt>
+      <dd><div class="chips">{% for c in analysis.affected_product_codes %}<span class="chip">{{ c }}</span>{% endfor %}</div></dd>
+      {% endif %}
+      {% if analysis.affected_submission_types %}
+      <dt>Submission types</dt>
+      <dd><div class="chips">{% for c in analysis.affected_submission_types %}<span class="chip">{{ c }}</span>{% endfor %}</div></dd>
+      {% endif %}
+    </dl>
+  </div>
+  {% else %}
+  <div class="empty">
+    <div class="big">No analysis yet</div>
+    <p>Run the analysis to extract what changed, score its severity, and ground it in the source document.</p>
+  </div>
+  {% endif %}
+</div>
+
+<div class="tabpane" id="tab-predictions">
+  {% if simulation %}
+  {% set preds = simulation.predictions %}
+  {% set names = ['enforcement','reviewer','sponsor'] %}
+  {% set roles = {'enforcement':'FDA enforcement-risk predictor','reviewer':'FDA premarket reviewer predictor','sponsor':'Industry sponsor adaptation predictor'} %}
+  <h3 style="font-size:13px;margin-bottom:10px;">Clone comparison matrix</h3>
+  <div class="card flush" style="margin-bottom:16px;overflow-x:auto;">
+    <table class="matrix">
+      <thead><tr><th></th>{% for n in names %}<th>{{ n|capitalize }}</th>{% endfor %}</tr></thead>
+      <tbody>
+        <tr>
+          <th>Status</th>
+          {% for n in names %}{% set p = preds.get(n, {}) %}
+          <td class="{% if p.error %}dissent{% endif %}">
+            {% if p.error %}<span class="dissent-flag">Failed</span>{% else %}✓ Predicted{% endif %}
+          </td>{% endfor %}
+        </tr>
+        <tr>
+          <th>Confidence</th>
+          {% for n in names %}{% set p = preds.get(n, {}) %}
+          <td>{{ p.confidence or '—' }}</td>{% endfor %}
+        </tr>
+        <tr>
+          <th>Timeline</th>
+          {% for n in names %}{% set p = preds.get(n, {}) %}
+          <td>{{ p.timeline or '—' }}</td>{% endfor %}
+        </tr>
+        <tr>
+          <th>Patterns fired</th>
+          {% for n in names %}{% set p = preds.get(n, {}) %}
+          <td>
+            {% if p.patterns_used %}
+              {% for pu in p.patterns_used %}<span class="chip" title="relevance {{ pu.score }} · triggers: {{ pu.matched_triggers|join(', ') }}">{{ pu.name }}</span>{% endfor %}
+            {% else %}—{% endif %}
+          </td>{% endfor %}
+        </tr>
+        <tr>
+          <th>Sources cited</th>
+          {% for n in names %}{% set p = preds.get(n, {}) %}
+          <td>{{ (p.citations|length) if p.citations else 0 }}</td>{% endfor %}
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  {% set pattern_sets = {} %}
+  {% for n in names %}{% set p = preds.get(n, {}) %}
+    {% if p.patterns_used %}{% set _ = pattern_sets.update({n: p.patterns_used|map(attribute='name')|list}) %}{% endif %}
+  {% endfor %}
+  {% set all_patterns = pattern_sets.values()|sum(start=[]) | unique | list %}
+  {% set shared = [] %}{% set split = [] %}
+  {% for pat in all_patterns %}
+    {% set holders = pattern_sets.items()|selectattr('1', 'contains', pat)|map(attribute='0')|list %}
+    {% if holders|length == names|length %}{% set _ = shared.append(pat) %}{% else %}{% set _ = split.append((pat, holders)) %}{% endif %}
+  {% endfor %}
+  {% if split %}
+  <div class="card" style="margin-bottom:16px;border-color:var(--amber-border);background:#fffdf5;">
+    <h3>Where clones disagree</h3>
+    {% for pat, holders in split %}
+    <p style="font-size:13px;margin-bottom:6px;"><span class="chip">{{ pat }}</span>
+      <span style="color:var(--text-2);"> fired for <strong>{{ holders|join(', ') }}</strong> only — the other clone{{ 's' if (names|length - holders|length) != 1 }} did not match it.</span></p>
+    {% endfor %}
+  </div>
+  {% endif %}
+  <div class="grid three">
+    {% for n in names %}{% set p = preds.get(n, {}) %}
+    <div class="card clone-card">
+      <div class="clone-head">
+        <span class="clone-avatar {{ n }}">{{ n[0]|upper }}</span>
+        <div class="who"><div class="name">{{ n }}</div><div class="role">{{ roles[n] }}</div></div>
+      </div>
+      {% if p.error %}
+      <p style="color:var(--red-text);font-size:13px;">Clone failed: {{ p.error }}</p>
+      {% else %}
+      {% if p.prediction %}<div class="pred-text">{{ p.prediction }}</div>{% endif %}
+      {% if p.patterns_used %}
+      <div style="margin-top:10px;">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-3);margin-bottom:6px;">Patterns fired</div>
+        <div class="chips">
+          {% for pu in p.patterns_used %}
+          <span class="chip" title="relevance {{ pu.score }} · confidence {{ (pu.confidence*100)|round(0) }}% · triggers: {{ pu.matched_triggers|join(', ') }}">{{ pu.name }} · {{ (pu.confidence*100)|round(0) }}%</span>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+      {% if p.citations %}
+      <div style="margin-top:8px;font-size:12px;">
+        <span style="color:var(--text-3);">Sources: </span>
+        {% for c in p.citations[:4] %}<a href="{{ c }}" target="_blank" rel="noopener">{{ c[:48] }}…</a>{% if not loop.last %}, {% endif %}{% endfor %}
+      </div>
+      {% endif %}
+      <div class="foot-note"><span>{{ p.timeline or '' }}</span><span>Confidence: <strong>{{ p.confidence or '—' }}</strong></span></div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty">
+    <div class="big">No simulation yet</div>
+    <p>Run the clone simulation to get side-by-side predictions from the enforcement, reviewer, and sponsor clones.</p>
+  </div>
+  {% endif %}
+</div>
+
+<div class="tabpane" id="tab-evidence">
+  <div class="ev-grid">
+    <div class="card">
+      <h3>Source diff</h3>
+      <pre class="diff">{{ event.raw_diff or 'No diff captured for this event.' }}</pre>
+    </div>
+    <div class="card">
+      <h3>Citations</h3>
+      {% if analysis and analysis.citations %}
       <ul class="cite-list">
         {% for c in analysis.citations %}<li><a href="{{ c }}" target="_blank" rel="noopener">{{ c }}</a></li>{% endfor %}
       </ul>
-    </dd>
-    {% endif %}
-  </dl>
-</div>
-{% endif %}
-
-{% if simulation %}
-<h2 class="section-title"><span class="n">3</span>Clone simulation {% if simulation.demo %}<span class="pill demo">demo</span>{% endif %}</h2>
-<p style="color:var(--text-2);font-size:13.5px;margin:-4px 0 12px;max-width:860px;">Three behavior-pattern clones predict how each stakeholder responds to this change, side by side.</p>
-<div class="grid three">
-  {% for name in ['enforcement','reviewer','sponsor'] %}
-  {% set pred = simulation.predictions.get(name, {}) %}
-  <div class="card clone-card">
-    <div class="clone-head">
-      <span class="clone-avatar {{ name }}">{{ name[0]|upper }}</span>
-      <div class="who">
-        <div class="name">{{ name }}</div>
-        <div class="role">
-          {% if name == 'enforcement' %}FDA enforcement-risk predictor
-          {% elif name == 'reviewer' %}FDA premarket reviewer predictor
-          {% else %}Industry sponsor adaptation predictor{% endif %}
-        </div>
-      </div>
+      {% else %}
+      <p style="color:var(--text-3);font-size:13px;">Citations appear after analysis.</p>
+      {% endif %}
+      <h3 style="margin-top:18px;">Source document</h3>
+      <p style="font-size:13px;"><a href="{{ event.url }}" target="_blank" rel="noopener">{{ event.url[:80] }}… ↗</a></p>
     </div>
-    {% if pred.error %}
-    <p style="color:var(--red-text);">Clone failed: {{ pred.error }}</p>
-    {% else %}
-    {% if pred.prediction %}<div style="font-size:13.5px;line-height:1.6;white-space:pre-wrap;">{{ pred.prediction }}</div>{% endif %}
-    {% if pred.citations %}
-    <div style="margin-top:10px;font-size:12px;">
-      <span style="color:var(--text-3);">Sources: </span>
-      {% for c in pred.citations[:4] %}<a href="{{ c }}" target="_blank" rel="noopener">{{ c[:60] }}</a>{% if not loop.last %}, {% endif %}{% endfor %}
-    </div>
-    {% endif %}
-    {% if pred.patterns_used %}
-    <div style="margin:10px 0;">
-      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;color:var(--text-3);margin-bottom:6px;">Patterns fired</div>
-      <div class="chips">
-        {% for pu in pred.patterns_used %}
-        <span class="chip" title="relevance {{ pu.score }} · confidence {{ (pu.confidence*100)|round(0) }}% · triggers: {{ pu.matched_triggers|join(', ') }}">{{ pu.name }} · {{ (pu.confidence*100)|round(0) }}%</span>
-        {% endfor %}
-      </div>
-    </div>
-    {% endif %}
-    <div class="foot-note">
-      <span>{{ pred.timeline or '' }}</span>
-      <span>Confidence: <strong>{{ pred.confidence or '—' }}</strong></span>
-    </div>
-    {% endif %}
   </div>
-  {% endfor %}
+  <details class="raw">
+    <summary>Raw JSON (event · analysis · simulation)</summary>
+    <pre class="json">{{ {'event': event.to_dict(), 'analysis': analysis, 'simulation': simulation}|tojson(indent=2) }}</pre>
+  </details>
 </div>
-{% endif %}
 
-<details class="raw">
-  <summary>Raw JSON</summary>
-  <pre class="json">{{ {'event': event.to_dict(), 'analysis': analysis, 'simulation': simulation}|tojson(indent=2) }}</pre>
-</details>
+<script>
+document.querySelectorAll('.tabs button[data-tab]').forEach(function (btn) {
+  if (btn.disabled) return;
+  btn.addEventListener('click', function () {
+    document.querySelectorAll('.tabs button').forEach(function (b) { b.classList.remove('active'); });
+    document.querySelectorAll('.tabpane').forEach(function (p) { p.classList.remove('active'); });
+    btn.classList.add('active');
+    document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+  });
+});
+</script>
 {% endblock %}

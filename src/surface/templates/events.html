@@ -23,7 +23,7 @@
   <input class="input" type="search" name="q" placeholder="Search title, source, URL…" value="{{ q }}">
   <select class="input" name="status">
     <option value="all" {% if status=='all' %}selected{% endif %}>All statuses</option>
-    {% for s in ['raw','analyzed','simulated','alerted'] %}
+    {% for s in ['raw','analyzing','analyzed','simulating','simulated','alerted'] %}
     <option value="{{ s }}" {% if status==s %}selected{% endif %}>{{ s|capitalize }}</option>
     {% endfor %}
   </select>

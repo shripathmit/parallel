@@ -1,78 +1,93 @@
 {% extends "base.html" %}
-{% block title %}parallel · clones{% endblock %}
+{% block title %}parallel · clones & patterns{% endblock %}
 {% block content %}
 <div class="page-head">
   <div>
-    <h1>Behavior clones</h1>
-    <div class="sub">Distilled patterns of how FDA stakeholders behave — mined from warning letters, decision summaries, and industry responses, then run against every change.</div>
+    <h1>Clones &amp; patterns</h1>
+    <div class="sub">Distilled patterns of FDA stakeholder behavior — mined from warning letters, decision summaries, and industry responses, then run against every change.</div>
   </div>
 </div>
 
-<div class="grid three" style="margin-bottom:16px;">
+<div class="grid three" style="margin-bottom:14px;">
   {% for p in profiles %}
   <div class="card clone-card">
     <div class="clone-head">
       <span class="clone-avatar {{ p.name }}">{{ p.name[0]|upper }}</span>
-      <div class="who">
-        <div class="name">{{ p.name }} clone</div>
-        <div class="role">{{ p.role }}</div>
-      </div>
+      <div class="who"><div class="name">{{ p.name }} clone</div><div class="role">{{ p.role }}</div></div>
     </div>
-    <div class="profile-prompt">{{ p.system_prompt }}</div>
-    <div class="profile-prompt" style="margin-top:8px;"><strong>Grounding:</strong> {{ p.grounding_instructions }}</div>
     {% set lp = latest.get(p.name) %}
     {% if lp %}
-    <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border);">
-      <div style="font-size:11.5px;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-3);font-weight:650;margin-bottom:6px;">Latest prediction</div>
-      <div class="verdict" style="font-size:13.5px;">{{ lp.pred.verdict }}</div>
-      <a href="/ui/events/{{ lp.event.id }}" style="font-size:13px;">{{ lp.event.title[:70] }}… →</a>
-      <div class="foot-note"><span></span><span>Confidence: <strong>{{ lp.pred.confidence or '—' }}</strong></span></div>
-    </div>
+    <div style="font-size:12.5px;color:var(--text-2);margin-bottom:6px;">Latest prediction</div>
+    <a href="/ui/events/{{ lp.event.id }}" style="font-size:13px;font-weight:600;color:var(--text);">{{ lp.event.title[:64] }}… →</a>
+    <div class="foot-note"><span></span><span>Confidence: <strong>{{ lp.pred.confidence or '—' }}</strong></span></div>
     {% else %}
-    <div style="margin-top:14px;font-size:13px;color:var(--text-3);">No predictions yet — simulate an event to see this clone work.</div>
+    <div style="font-size:12.5px;color:var(--text-3);">No predictions yet — simulate an event to see this clone work.</div>
     {% endif %}
   </div>
   {% endfor %}
 </div>
 
-<div class="card">
+<div class="card" style="margin-bottom:14px;">
   <h3>How clones are built</h3>
-  <p style="color:var(--text-2);font-size:13.5px;max-width:820px;margin:0 0 4px;">
-    <strong>1. Mine</strong> — Parallel FindAll scans FDA records (warning letters, 510(k) decision summaries, recalls) and the Task API distills recurring behavior patterns per stakeholder into the library below.
-    <strong>2. Match</strong> — for each new change, a deterministic matcher scores every pattern by trigger coverage × confidence and hands the top matches to that stakeholder's clone.
-    <strong>3. Reason</strong> — the clone predicts from the analysis <em>plus</em> its matched patterns, and cites which patterns fired.
+  <p style="color:var(--text-2);font-size:13px;max-width:860px;margin:0;">
+    <strong>1. Mine</strong> — FindAll scans FDA records and the Task API distills recurring behavior patterns per stakeholder.
+    <strong>2. Match</strong> — a deterministic matcher scores every pattern by trigger coverage × confidence and hands the top matches to that stakeholder's clone.
+    <strong>3. Reason</strong> — the clone predicts from the analysis <em>plus</em> its matched patterns, and cites which fired.
   </p>
 </div>
 
-<h2 class="section-title">Pattern library</h2>
-<p style="color:var(--text-2);font-size:13.5px;margin:-4px 0 12px;max-width:860px;">The evidence base. Each pattern names its trigger phrases, typical actions, supporting FDA records, and confidence. Mined patterns arrive via the mining pipeline; demo patterns are distilled from the real publications in the demo set.</p>
-{% for stakeholder in ['enforcement','reviewer','sponsor'] %}
-<h3 style="font-size:13px;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-3);margin:20px 0 10px;">{{ stakeholder }}</h3>
-<div class="grid two">
-  {% for p in by_stakeholder.get(stakeholder, []) %}
-  <div class="card">
-    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px;">
-      <span style="font-family:var(--mono);font-weight:700;font-size:13.5px;">{{ p.name }}</span>
-      <span style="display:flex;gap:6px;align-items:center;">
-        {% if p.demo %}<span class="pill demo">demo</span>{% endif %}
-        <span class="pill">{{ (p.confidence*100)|round(0) }}% conf</span>
-      </span>
-    </div>
-    <p style="font-size:13.5px;color:var(--text-2);">{{ p.description }}</p>
-    <div class="chips">{% for t in p.triggers %}<span class="chip">{{ t }}</span>{% endfor %}</div>
-    {% if p.typical_actions %}
-    <ul class="action-list" style="margin-top:8px;">
-      {% for a in p.typical_actions %}<li>{{ a }}</li>{% endfor %}
-    </ul>
-    {% endif %}
-    <div class="foot-note"><span>{{ p.support }} supporting records</span><span>v{{ p.version }}</span></div>
-    {% if p.evidence_citations %}
-    <ul class="cite-list">
-      {% for c in p.evidence_citations %}<li><a href="{{ c }}" target="_blank" rel="noopener">{{ c[:72] }}…</a></li>{% endfor %}
-    </ul>
-    {% endif %}
-  </div>
-  {% endfor %}
+<div class="page-head" style="margin-bottom:10px;">
+  <div><h1 style="font-size:16px;">Pattern library</h1>
+  <div class="sub">Click a column header to sort.</div></div>
 </div>
-{% endfor %}
+<div class="card flush">
+  <table class="tbl" id="pattern-table">
+    <thead><tr>
+      <th class="sortable" data-k="0">Pattern ↕</th>
+      <th class="sortable" data-k="1">Stakeholder ↕</th>
+      <th class="sortable" data-k="2" data-n="1">Confidence ↕</th>
+      <th>Triggers</th>
+      <th class="sortable" data-k="4" data-n="1">Records ↕</th>
+      <th>Description</th>
+    </tr></thead>
+    <tbody>
+    {% for stakeholder in ['enforcement','reviewer','sponsor'] %}
+    {% for p in by_stakeholder.get(stakeholder, []) %}
+      <tr>
+        <td class="title-cell" style="font-family:var(--mono);font-size:12.5px;">{{ p.name }}
+          {% if p.demo %}<span class="pill demo" style="margin-left:6px;">demo</span>{% endif %}
+        </td>
+        <td style="text-transform:capitalize;white-space:nowrap;">{{ p.stakeholder }}</td>
+        <td data-v="{{ p.confidence }}" style="white-space:nowrap;"><strong>{{ (p.confidence*100)|round(0) }}%</strong></td>
+        <td><div class="chips" style="margin:0;">{% for t in p.triggers[:6] %}<span class="chip">{{ t }}</span>{% endfor %}{% if p.triggers|length > 6 %}<span class="chip">+{{ p.triggers|length - 6 }}</span>{% endif %}</div></td>
+        <td data-v="{{ p.support }}" style="white-space:nowrap;">{{ p.support }}</td>
+        <td style="color:var(--text-2);font-size:12.5px;max-width:340px;">{{ p.description[:140] }}{% if p.description|length > 140 %}…{% endif %}</td>
+      </tr>
+    {% endfor %}
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<script>
+(function () {
+  var tbl = document.getElementById('pattern-table');
+  var ths = tbl.querySelectorAll('th.sortable');
+  var dir = 1, lastK = -1;
+  ths.forEach(function (th) {
+    th.addEventListener('click', function () {
+      var k = parseInt(th.dataset.k, 10), numeric = th.dataset.n === '1';
+      dir = (k === lastK) ? -dir : 1; lastK = k;
+      var rows = Array.prototype.slice.call(tbl.tBodies[0].rows);
+      rows.sort(function (a, b) {
+        var av = a.cells[k].dataset.v !== undefined && a.cells[k].dataset.v !== '' ? a.cells[k].dataset.v : a.cells[k].textContent.trim();
+        var bv = b.cells[k].dataset.v !== undefined && b.cells[k].dataset.v !== '' ? b.cells[k].dataset.v : b.cells[k].textContent.trim();
+        if (numeric) { av = parseFloat(av) || 0; bv = parseFloat(bv) || 0; }
+        return (av > bv ? 1 : av < bv ? -1 : 0) * dir;
+      });
+      rows.forEach(function (r) { tbl.tBodies[0].appendChild(r); });
+    });
+  });
+})();
+</script>
 {% endblock %}
