@@ -1,43 +1,90 @@
 {% extends "base.html" %}
+{% from "base.html" import sev_pill, status_pill %}
 {% block title %}parallel · overview{% endblock %}
 {% block content %}
-<h1>Pipeline overview</h1>
-
-<div class="cards">
-  <div class="card"><div class="num">{{ stats.total }}</div><div class="lbl">change events</div></div>
-  <div class="card"><div class="num">{{ stats.raw }}</div><div class="lbl">awaiting analysis</div></div>
-  <div class="card"><div class="num">{{ stats.analyzed }}</div><div class="lbl">analyzed</div></div>
-  <div class="card"><div class="num">{{ stats.simulated }}</div><div class="lbl">simulated</div></div>
-  <div class="card"><div class="num">{{ stats.monitors }}</div><div class="lbl">monitors live</div></div>
+<div class="page-head">
+  <div>
+    <h1>Overview</h1>
+    <div class="sub">FDA change intelligence — sense, understand, clone, simulate.</div>
+  </div>
+  <div class="btn-row">
+    <a class="btn" href="/ui/events">Browse events</a>
+    <a class="btn primary" href="/ui/monitors">Manage monitors</a>
+  </div>
 </div>
 
-<div class="pipeline">
-  <div class="stage"><b>1 · Sense</b><span>Monitors watch FDA sources; webhooks become change events</span></div>
-  <div class="arrow">→</div>
-  <div class="stage"><b>2 · Understand</b><span>Task API classifies each change + scores impact</span></div>
-  <div class="arrow">→</div>
-  <div class="stage"><b>3 · Clone</b><span>Enforcement / reviewer / sponsor behavior clones</span></div>
-  <div class="arrow">→</div>
-  <div class="stage"><b>4 · Simulate</b><span>Clones predict stakeholder response side-by-side</span></div>
-  <div class="arrow">→</div>
-  <div class="stage"><b>5 · Surface</b><span>Alerts on severity ≥ 4, this dashboard, API</span></div>
+<div class="grid kpis" style="margin-bottom:16px;">
+  <div class="card kpi">
+    <div class="kpi-value">{{ stats.total }}</div>
+    <div class="kpi-label">Events tracked</div>
+    <div class="kpi-sub">{% if stats.demo %}{{ stats.demo }} demo · {% endif %}across {{ sources|length }} monitor sources</div>
+  </div>
+  <div class="card kpi">
+    <div class="kpi-value">{{ stats.by_status.get('simulated', 0) }}</div>
+    <div class="kpi-label">Fully simulated</div>
+    <div class="kpi-sub">{{ stats.by_status.get('analyzed', 0) }} analyzed · {{ stats.by_status.get('raw', 0) }} awaiting analysis</div>
+  </div>
+  <div class="card kpi">
+    <div class="kpi-value">{{ stats.high_sev }}</div>
+    <div class="kpi-label">High / critical severity</div>
+    <div class="kpi-sub">Severity 4–5 of scored events</div>
+  </div>
+  <div class="card kpi">
+    <div class="kpi-value">{{ stats.monitors }}</div>
+    <div class="kpi-label">Live monitors</div>
+    <div class="kpi-sub">{% if key_ok %}Parallel Monitor API{% else %}Start them from the Monitors tab{% endif %}</div>
+  </div>
 </div>
 
-<h2>Recent events</h2>
-{% if recent %}
-<table>
-  <tr><th>Detected</th><th>Source</th><th>Title</th><th>Type</th><th>Status</th></tr>
-  {% for e in recent %}
-  <tr>
-    <td class="muted">{{ e.detected_at[:16].replace('T', ' ') }}</td>
-    <td>{{ e.source }}</td>
-    <td><a href="/ui/events/{{ e.id }}">{{ e.title or e.url }}</a></td>
-    <td>{{ e.change_type }}</td>
-    <td><span class="badge {{ e.status }}">{{ e.status }}</span></td>
-  </tr>
-  {% endfor %}
-</table>
-{% else %}
-<p class="muted">No events yet. {% if not key_ok %}Set <code>PARALLEL_API_KEY</code> and backfill history or wait for monitor webhooks.{% else %}Run a <a href="/ui/monitors">monitor backfill</a> to seed history.{% endif %}</p>
-{% endif %}
+<div class="grid two" style="margin-bottom:16px;">
+  <div class="card">
+    <h3>Pipeline</h3>
+    {% set stages = [('raw','Detected'), ('analyzed','Analyzed'), ('simulated','Simulated')] %}
+    {% set maxc = stats.total if stats.total > 0 else 1 %}
+    {% for key, label in stages %}
+    <div class="funnel-step">
+      <div class="funnel-top"><span class="name">{{ label }}</span><span class="count">{{ stats.by_status.get(key, 0) }}</span></div>
+      <div class="funnel-bar"><div class="funnel-fill" style="width:{{ (stats.by_status.get(key,0) / maxc * 100)|round(1) }}%"></div></div>
+    </div>
+    {% endfor %}
+    <p style="margin:12px 0 0;font-size:12.5px;color:var(--text-3);">Events move raw → analyzed (Task API) → simulated (three behavior clones).</p>
+  </div>
+  <div class="card">
+    <h3>Severity distribution</h3>
+    {% set sevmax = (stats.severity.values()|max) if stats.total else 1 %}
+    {% for s in [5,4,3,2,1] %}
+    {% set n = stats.severity.get(s, 0) %}
+    <div class="sev-row">
+      <span class="sev-label">Sev {{ s }}{% if s==5 %} · Critical{% elif s==4 %} · High{% elif s==3 %} · Medium{% elif s==2 %} · Low{% else %} · Info{% endif %}</span>
+      <div class="funnel-bar"><div class="funnel-fill" style="width:{{ (n / sevmax * 100)|round(1) }}%;{% if s==5 %}background:#b42318{% elif s==4 %}background:#c2410c{% elif s==3 %}background:#b98a12{% elif s==2 %}background:#0369a1{% else %}background:#9aa0aa{% endif %}"></div></div>
+      <span class="sev-n">{{ n }}</span>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="card flush">
+  <h3>Recent events</h3>
+  {% if recent %}
+  <table class="tbl">
+    <thead><tr><th>Event</th><th>Source</th><th>Detected</th><th>Severity</th><th>Status</th></tr></thead>
+    <tbody>
+    {% for e in recent %}
+      <tr>
+        <td class="title-cell">
+          <a href="/ui/events/{{ e.id }}">{{ e.title }}</a>
+          {% if e.demo %}<span class="pill demo" style="margin-left:8px;">demo</span>{% endif %}
+        </td>
+        <td style="color:var(--text-2);">{{ e.source }}</td>
+        <td style="color:var(--text-3);white-space:nowrap;">{{ e.detected_at[:10] }}</td>
+        <td>{{ sev_pill(sev_of(e.id)) }}</td>
+        <td>{{ status_pill(e.status) }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty"><div class="big">No events yet</div>Start monitors to begin sensing FDA changes, or seed demo data.</div>
+  {% endif %}
+</div>
 {% endblock %}

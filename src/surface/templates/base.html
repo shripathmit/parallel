@@ -1,3 +1,14 @@
+{% macro sev_pill(sev) -%}
+{%- if sev == 5 -%}<span class="pill sev5"><span class="dot"></span>Sev 5 · Critical</span>
+{%- elif sev == 4 -%}<span class="pill sev4"><span class="dot"></span>Sev 4 · High</span>
+{%- elif sev == 3 -%}<span class="pill sev3"><span class="dot"></span>Sev 3 · Medium</span>
+{%- elif sev == 2 -%}<span class="pill sev2"><span class="dot"></span>Sev 2 · Low</span>
+{%- elif sev == 1 -%}<span class="pill sev1"><span class="dot"></span>Sev 1 · Info</span>
+{%- else -%}<span class="pill"><span class="dot"></span>Unscored</span>{%- endif -%}
+{%- endmacro %}
+{% macro status_pill(status) -%}
+<span class="pill status {{ status }}"><span class="dot"></span>{{ status }}</span>
+{%- endmacro %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -5,27 +16,39 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{% block title %}parallel{% endblock %}</title>
 <link rel="stylesheet" href="/static/style.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 </head>
 <body>
-<header>
-  <div class="brand"><a href="/"><span class="logo">∥</span> parallel</a> <span class="tag">FDA change intelligence</span></div>
-  <nav>
-    <a href="/" class="{% if active == 'home' %}on{% endif %}">Overview</a>
-    <a href="/ui/events" class="{% if active == 'events' %}on{% endif %}">Events</a>
-    <a href="/ui/monitors" class="{% if active == 'monitors' %}on{% endif %}">Monitors</a>
-    <a href="/docs">API</a>
-  </nav>
-  <div class="key {{ 'ok' if key_ok else 'missing' }}" title="Parallel API key status">{{ '● key set' if key_ok else '○ key missing' }}</div>
+<header class="topbar">
+  <div class="topbar-inner">
+    <a class="brand" href="/"><span class="brand-mark">P</span>parallel</a>
+    <nav class="nav">
+      <a href="/" class="{{ 'active' if active == 'home' }}">Overview</a>
+      <a href="/ui/events" class="{{ 'active' if active == 'events' }}">Events</a>
+      <a href="/ui/clones" class="{{ 'active' if active == 'clones' }}">Clones</a>
+      <a href="/ui/monitors" class="{{ 'active' if active == 'monitors' }}">Monitors</a>
+    </nav>
+    <div class="topbar-right">
+      {% if key_ok %}
+      <span class="pill ok"><span class="dot"></span>API key set</span>
+      {% else %}
+      <span class="pill warn"><span class="dot"></span>Key missing</span>
+      {% endif %}
+      <a class="btn" href="/docs" style="padding:7px 12px;font-size:12.5px;">API</a>
+    </div>
+  </div>
 </header>
-{% if error %}
-<div class="banner error">{{ error }}</div>
+{% if demo_mode %}
+<div class="demo-banner">
+  <div class="demo-banner-inner">
+    <span class="demo-tag">DEMO DATA</span>
+    <span>You're looking at an illustrative sample built from real FDA publications. Analyses and clone predictions are synthetic. Connect your Parallel API key for live monitoring.</span>
+  </div>
+</div>
 {% endif %}
-{% if notice %}
-<div class="banner notice">{{ notice }}</div>
-{% endif %}
-<main>
+<main class="page">
 {% block content %}{% endblock %}
 </main>
-<footer>sense → understand → clone → simulate → surface</footer>
 </body>
 </html>

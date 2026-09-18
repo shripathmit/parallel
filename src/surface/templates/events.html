@@ -1,29 +1,56 @@
 {% extends "base.html" %}
+{% from "base.html" import sev_pill, status_pill %}
 {% block title %}parallel · events{% endblock %}
 {% block content %}
-<h1>Change events</h1>
-
-<div class="filters">
-  {% for f in ['all', 'raw', 'analyzed', 'simulated'] %}
-  <a href="/ui/events?status={{ f }}" class="chip {% if status == f %}on{% endif %}">{{ f }}</a>
-  {% endfor %}
+<div class="page-head">
+  <div>
+    <h1>Events</h1>
+    <div class="sub">{{ events|length }} change event{{ 's' if events|length != 1 }} detected across FDA sources.</div>
+  </div>
 </div>
 
-{% if events %}
-<table>
-  <tr><th>Detected</th><th>Source</th><th>Title</th><th>Type</th><th>Status</th><th></th></tr>
-  {% for e in events %}
-  <tr>
-    <td class="muted">{{ e.detected_at[:16].replace('T', ' ') }}</td>
-    <td>{{ e.source }}</td>
-    <td>{{ e.title or e.url }}</td>
-    <td>{{ e.change_type }}</td>
-    <td><span class="badge {{ e.status }}">{{ e.status }}</span></td>
-    <td><a class="btn small" href="/ui/events/{{ e.id }}">Open</a></td>
-  </tr>
-  {% endfor %}
-</table>
-{% else %}
-<p class="muted">No events with this status.</p>
-{% endif %}
+<form class="filters" method="get" action="/ui/events">
+  <input class="input" type="search" name="q" placeholder="Search title, source, URL…" value="{{ q }}">
+  <select class="input" name="status">
+    <option value="all" {% if status=='all' %}selected{% endif %}>All statuses</option>
+    {% for s in ['raw','analyzed','simulated','alerted'] %}
+    <option value="{{ s }}" {% if status==s %}selected{% endif %}>{{ s|capitalize }}</option>
+    {% endfor %}
+  </select>
+  <select class="input" name="severity">
+    <option value="all" {% if severity=='all' %}selected{% endif %}>All severities</option>
+    {% for s in [5,4,3,2,1] %}
+    <option value="{{ s }}" {% if severity==s|string %}selected{% endif %}>Severity {{ s }}</option>
+    {% endfor %}
+  </select>
+  <button class="btn" type="submit">Filter</button>
+  {% if q or status != 'all' or severity != 'all' %}
+  <a class="btn" href="/ui/events">Clear</a>
+  {% endif %}
+</form>
+
+<div class="card flush">
+  {% if events %}
+  <table class="tbl">
+    <thead><tr><th>Event</th><th>Source</th><th>Detected</th><th>Severity</th><th>Status</th></tr></thead>
+    <tbody>
+    {% for e in events %}
+      <tr>
+        <td class="title-cell">
+          <a href="/ui/events/{{ e.id }}">{{ e.title }}</a>
+          {% if e.demo %}<span class="pill demo" style="margin-left:8px;">demo</span>{% endif %}
+          <div class="meta">{{ e.change_type|replace('_',' ')|capitalize }} · <a href="{{ e.url }}" target="_blank" rel="noopener">source ↗</a></div>
+        </td>
+        <td style="color:var(--text-2);white-space:nowrap;">{{ e.source }}</td>
+        <td style="color:var(--text-3);white-space:nowrap;">{{ e.detected_at[:10] }}</td>
+        <td>{{ sev_pill(sev_of(e.id)) }}</td>
+        <td>{{ status_pill(e.status) }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty"><div class="big">No events match</div>Try clearing the filters.</div>
+  {% endif %}
+</div>
 {% endblock %}

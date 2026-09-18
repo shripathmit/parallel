@@ -19,6 +19,7 @@ class ChangeEvent:
     change_type: str = "unknown"  # new | revised | withdrawn | discovered | unknown
     raw_diff: str = ""
     status: str = "raw"
+    demo: bool = False  # True for seeded illustrative data (called out in UI)
 
     def to_dict(self):
         return asdict(self)

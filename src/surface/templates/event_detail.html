@@ -1,70 +1,133 @@
 {% extends "base.html" %}
-{% block title %}parallel · event{% endblock %}
+{% from "base.html" import sev_pill, status_pill %}
+{% block title %}parallel · {{ event.title[:60] }}{% endblock %}
 {% block content %}
-<p><a href="/ui/events">← all events</a></p>
-<h1>{{ event.title or 'Untitled change' }}</h1>
+<div class="breadcrumb"><a href="/ui/events">← All events</a></div>
 
-<div class="meta">
-  <div><span class="k">Source</span> {{ event.source }}</div>
-  <div><span class="k">Detected</span> {{ event.detected_at[:16].replace('T', ' ') }} UTC</div>
-  <div><span class="k">Status</span> <span class="badge {{ event.status }}">{{ event.status }}</span></div>
-  <div><span class="k">URL</span> <a href="{{ event.url }}" target="_blank" rel="noopener">{{ event.url[:80] }}</a></div>
+{% if error %}<div class="flash error">{{ error }}</div>{% endif %}
+{% if notice %}<div class="flash notice">{{ notice }}</div>{% endif %}
+
+<div class="badge-row">
+  {{ status_pill(event.status) }}
+  {% if analysis %}{{ sev_pill(analysis.severity) }}{% endif %}
+  {% if event.demo %}<span class="pill demo">DEMO DATA</span>{% endif %}
+  <span class="pill">{{ event.change_type|replace('_',' ')|capitalize }}</span>
 </div>
 
-{% if event.raw_diff %}
-<h2>Raw diff</h2>
-<pre class="diff">{{ event.raw_diff[:4000] }}</pre>
-{% endif %}
+<h1 class="detail-title">{{ event.title }}</h1>
+<div class="detail-meta">
+  <span>{{ event.source }}</span>
+  <span>Detected {{ event.detected_at[:10] }}</span>
+  <span><a href="{{ event.url }}" target="_blank" rel="noopener">Open source ↗</a></span>
+</div>
 
-<h2>Analysis</h2>
-{% if analysis %}
-<div class="analysis">
-  <div class="sev sev{{ analysis.severity or 0 }}">severity {{ analysis.severity or '?' }}/5</div>
-  <div><span class="k">Change type</span> {{ analysis.change_type }}</div>
-  <p>{{ analysis.summary }}</p>
-  {% if analysis.affected_product_codes %}
-  <div><span class="k">Product codes</span> {{ analysis.affected_product_codes | join(', ') }}</div>
-  {% endif %}
-  {% if analysis.affected_submission_types %}
-  <div><span class="k">Submission types</span> {{ analysis.affected_submission_types | join(', ') }}</div>
-  {% endif %}
-  {% if analysis.citations %}
-  <div><span class="k">Citations</span>
-    <ul>{% for c in analysis.citations %}<li><a href="{{ c }}" target="_blank" rel="noopener">{{ c[:90] }}</a></li>{% endfor %}</ul>
+<div class="card" style="margin-top:20px;">
+  <h3>Lifecycle</h3>
+  {% set order = ['raw','analyzed','simulated'] %}
+  {% set labels = {'raw':'Detected','analyzed':'Analyzed','simulated':'Simulated'} %}
+  {% set cur = order.index(event.status) if event.status in order else 0 %}
+  <div class="timeline">
+    {% for s in order %}
+    {% set i = loop.index0 %}
+    <div class="t-step {% if i < cur %}done{% elif i == cur %}done current{% endif %}">
+      <span class="t-dot"></span>
+      <span class="t-name">{{ labels[s] }}</span>
+    </div>
+    {% endfor %}
   </div>
+  <div class="btn-row" style="margin-top:16px;">
+    {% if not analysis %}
+    <form method="post" action="/ui/events/{{ event.id }}/analyze"><button class="btn primary" type="submit">Run analysis</button></form>
+    {% endif %}
+    {% if analysis and not simulation %}
+    <form method="post" action="/ui/events/{{ event.id }}/simulate"><button class="btn primary" type="submit">Run clone simulation</button></form>
+    {% endif %}
+    {% if analysis and simulation %}
+    <span style="font-size:13px;color:var(--green-text);font-weight:600;">✓ Pipeline complete for this event</span>
+    {% endif %}
+  </div>
+  {% if event.demo and not key_ok %}
+  <p style="margin:10px 0 0;font-size:12.5px;color:var(--text-3);">Demo mode: running a step loads the canned demo result for this event. Connect your Parallel API key to run it live.</p>
   {% endif %}
-  <div class="muted">confidence {{ analysis.confidence }}</div>
 </div>
-{% else %}
-<p class="muted">Not analyzed yet.</p>
-<form method="post" action="/ui/events/{{ event.id }}/analyze">
-  <button type="submit" {% if not key_ok %}disabled title="Set PARALLEL_API_KEY first"{% endif %}>Run analysis</button>
-</form>
+
+<h2 class="section-title"><span class="n">1</span>What changed</h2>
+<div class="card">
+  <pre class="diff">{{ event.raw_diff or 'No diff captured for this event.' }}</pre>
+</div>
+
+{% if analysis %}
+<h2 class="section-title"><span class="n">2</span>Analysis {% if analysis.demo %}<span class="pill demo">demo</span>{% endif %}</h2>
+<div class="card">
+  <p style="font-size:14.5px;max-width:860px;">{{ analysis.summary }}</p>
+  <dl class="kv" style="margin-top:16px;">
+    <dt>Change type</dt><dd style="text-transform:capitalize;">{{ analysis.change_type|replace('_',' ') }}</dd>
+    <dt>Severity</dt><dd>{{ sev_pill(analysis.severity) }}</dd>
+    <dt>Confidence</dt>
+    <dd>
+      <span class="conf-bar"><span class="conf-fill" style="width:{{ (analysis.confidence*100)|round(0) }}%"></span></span>
+      <span style="margin-left:8px;font-weight:650;">{{ (analysis.confidence*100)|round(0) }}%</span>
+    </dd>
+    {% if analysis.affected_product_codes %}
+    <dt>Product codes</dt>
+    <dd><div class="chips">{% for c in analysis.affected_product_codes %}<span class="chip">{{ c }}</span>{% endfor %}</div></dd>
+    {% endif %}
+    {% if analysis.affected_submission_types %}
+    <dt>Submission types</dt>
+    <dd><div class="chips">{% for c in analysis.affected_submission_types %}<span class="chip">{{ c }}</span>{% endfor %}</div></dd>
+    {% endif %}
+    {% if analysis.citations %}
+    <dt>Citations</dt>
+    <dd>
+      <ul class="cite-list">
+        {% for c in analysis.citations %}<li><a href="{{ c }}" target="_blank" rel="noopener">{{ c }}</a></li>{% endfor %}
+      </ul>
+    </dd>
+    {% endif %}
+  </dl>
+</div>
 {% endif %}
 
-<h2>Simulation</h2>
 {% if simulation %}
-<div class="clones">
-  {% for name, pred in simulation.predictions.items() %}
-  <div class="clone">
-    <h3>{{ name }}</h3>
+<h2 class="section-title"><span class="n">3</span>Clone simulation {% if simulation.demo %}<span class="pill demo">demo</span>{% endif %}</h2>
+<p style="color:var(--text-2);font-size:13.5px;margin:-4px 0 12px;max-width:860px;">Three behavior-pattern clones predict how each stakeholder responds to this change, side by side.</p>
+<div class="grid three">
+  {% for name in ['enforcement','reviewer','sponsor'] %}
+  {% set pred = simulation.predictions.get(name, {}) %}
+  <div class="card clone-card">
+    <div class="clone-head">
+      <span class="clone-avatar {{ name }}">{{ name[0]|upper }}</span>
+      <div class="who">
+        <div class="name">{{ name }}</div>
+        <div class="role">
+          {% if name == 'enforcement' %}FDA enforcement-risk predictor
+          {% elif name == 'reviewer' %}FDA premarket reviewer predictor
+          {% else %}Industry sponsor adaptation predictor{% endif %}
+        </div>
+      </div>
+    </div>
     {% if pred.error %}
-    <p class="error-text">error: {{ pred.error }}</p>
+    <p style="color:var(--red-text);">Clone failed: {{ pred.error }}</p>
     {% else %}
-    <p>{{ pred.prediction or pred }}</p>
-    {% if pred.citations %}
-    <ul class="cites">{% for c in pred.citations %}<li><a href="{{ c }}" target="_blank" rel="noopener">{{ c[:70] }}</a></li>{% endfor %}</ul>
+    <div class="verdict">{{ pred.verdict }}</div>
+    {% if pred.actions %}
+    <ul class="action-list">
+      {% for a in pred.actions %}<li>{{ a }}</li>{% endfor %}
+    </ul>
     {% endif %}
+    {% if pred.reasoning %}<p style="font-size:13px;color:var(--text-2);">{{ pred.reasoning }}</p>{% endif %}
+    <div class="foot-note">
+      <span>{{ pred.timeline or '' }}</span>
+      <span>Confidence: <strong>{{ pred.confidence or '—' }}</strong></span>
+    </div>
     {% endif %}
   </div>
   {% endfor %}
 </div>
-{% elif analysis %}
-<p class="muted">No simulation yet.</p>
-<form method="post" action="/ui/events/{{ event.id }}/simulate">
-  <button type="submit" {% if not key_ok %}disabled title="Set PARALLEL_API_KEY first"{% endif %}>Run simulation</button>
-</form>
-{% else %}
-<p class="muted">Analyze the event first, then simulate.</p>
 {% endif %}
+
+<details class="raw">
+  <summary>Raw JSON</summary>
+  <pre class="json">{{ {'event': event.to_dict(), 'analysis': analysis, 'simulation': simulation}|tojson(indent=2) }}</pre>
+</details>
 {% endblock %}

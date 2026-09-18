@@ -1,38 +1,43 @@
 {% extends "base.html" %}
 {% block title %}parallel · monitors{% endblock %}
 {% block content %}
-<h1>Monitors</h1>
-<p class="muted">Parallel Monitor API watches these FDA sources and POSTs change webhooks to <code>/webhooks/parallel/monitor</code>.</p>
-
-{% if live is not none %}
-<h2>Live monitors ({{ live | length }})</h2>
-{% if live %}
-<table>
-  <tr><th>Name</th><th>ID</th><th>Status</th></tr>
-  {% for m in live %}
-  <tr><td>{{ m.get('name', '?') }}</td><td class="muted">{{ m.get('id', '?') }}</td><td>{{ m.get('status', '?') }}</td></tr>
-  {% endfor %}
-</table>
-{% else %}
-<p class="muted">None running.</p>
-{% endif %}
-{% endif %}
-
-<h2>Configured sources</h2>
-<table>
-  <tr><th>Source</th><th>URL</th></tr>
-  {% for s in sources %}
-  <tr><td>{{ s.name }}</td><td><a href="{{ s.url }}" target="_blank" rel="noopener">{{ s.url[:70] }}</a></td></tr>
-  {% endfor %}
-</table>
-
-<div class="actions">
-  <form method="post" action="/ui/monitors/setup" style="display:inline">
-    <button type="submit" {% if not key_ok %}disabled title="Set PARALLEL_API_KEY first"{% endif %}>Start all monitors</button>
-  </form>
-  <form method="post" action="/ui/monitors/teardown" style="display:inline">
-    <button type="submit" class="danger" {% if not key_ok %}disabled title="Set PARALLEL_API_KEY first"{% endif %}>Stop all monitors</button>
-  </form>
+<div class="page-head">
+  <div>
+    <h1>Monitors</h1>
+    <div class="sub">Parallel Monitor sources watched for FDA changes. Detections arrive via webhook and enter the pipeline as raw events.</div>
+  </div>
+  <div class="btn-row">
+    {% if key_ok %}
+    <form method="post" action="/ui/monitors/setup"><button class="btn primary" type="submit">Start all monitors</button></form>
+    <form method="post" action="/ui/monitors/teardown"><button class="btn" type="submit">Stop all</button></form>
+    {% else %}
+    <button class="btn primary" disabled title="Set PARALLEL_API_KEY first">Start all monitors</button>
+    {% endif %}
+  </div>
 </div>
-<p class="muted small">Monitors need a public <code>WEBHOOK_BASE_URL</code> so Parallel can reach this service.</p>
+
+{% if error %}<div class="flash error">{{ error }}</div>{% endif %}
+{% if notice %}<div class="flash notice">{{ notice }}</div>{% endif %}
+
+{% if not key_ok %}
+<div class="flash error" style="background:var(--amber-bg);border-color:var(--amber-border);color:var(--amber-text);">
+  Monitors need a Parallel API key. Set <span class="chip">PARALLEL_API_KEY</span> in your environment, then start them here. Webhook deliveries land at <span class="chip">/webhooks/parallel/monitor</span>.
+</div>
+{% endif %}
+
+<div class="monitor-grid">
+  {% for src in sources %}
+  <div class="card monitor-card">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
+      <div class="src">{{ src.name if src.name is defined else src }}</div>
+      {% if key_ok and live %}<span class="pill ok"><span class="dot"></span>Live</span>
+      {% else %}<span class="pill"><span class="dot"></span>Not started</span>{% endif %}
+    </div>
+    {% if src.name is defined %}
+    <div class="desc">{{ src.objective }}</div>
+    <div class="meta" style="font-size:12.5px;color:var(--text-3);font-family:var(--mono);">{{ src.url }}</div>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
 {% endblock %}
