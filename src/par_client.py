@@ -201,18 +201,27 @@ class ParallelClient:
 
     # ---- Monitors ----
     def create_monitor(self, name, objective, url, frequency, webhook_url):
-        """Register a scheduled change monitor with webhook notifications."""
-        # TODO: verify against docs.parallel.ai (field names, frequency values)
-        return self._post(
-            "/v1alpha/monitors",
-            {
-                "name": name,
-                "objective": objective,
-                "url": url,
-                "frequency": frequency,
-                "webhook_url": webhook_url,
-            },
+        """Register a scheduled change monitor with webhook notifications.
+
+        v1alpha shape (per docs.parallel.ai/api-reference/monitor/create-monitor
+        and the live V0CreateMonitorRequest validation): query + cadence are
+        required; webhook/metadata are optional. Metadata tags the monitor so
+        teardown can find our own.
+        """
+        cadence = {"hourly": "hourly", "daily": "daily", "weekly": "weekly"}.get(
+            (frequency or "daily").lower(), "daily"
         )
+        body = {
+            "query": objective,
+            "cadence": cadence,
+            "metadata": {"app": "parallel", "source": name[:64]},
+        }
+        if webhook_url:
+            body["webhook"] = {
+                "url": webhook_url,
+                "event_types": ["monitor.event.detected"],
+            }
+        return self._post("/v1alpha/monitors", body)
 
     def list_monitors(self):
         # TODO: verify against docs.parallel.ai

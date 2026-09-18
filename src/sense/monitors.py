@@ -54,7 +54,11 @@ def setup_monitors(client: ParallelClient, webhook_url: str, frequency: str = "d
 
 
 def teardown_monitors(client: ParallelClient):
-    """Delete every Monitor whose name starts with 'parallel-'."""
+    """Delete every Monitor tagged with our app metadata.
+
+    v1alpha monitors carry monitor_id/query/status/cadence/metadata — no name
+    field — so we tag ours at creation with metadata.app == "parallel".
+    """
     removed = []
     listing = client.list_monitors()
     if isinstance(listing, dict):
@@ -62,9 +66,9 @@ def teardown_monitors(client: ParallelClient):
     else:
         monitors = listing or []
     for monitor in monitors:
-        name = monitor.get("name", "")
-        monitor_id = monitor.get("id", monitor.get("monitor_id"))
-        if name.startswith("parallel-") and monitor_id:
+        meta = monitor.get("metadata") or {}
+        monitor_id = monitor.get("monitor_id", monitor.get("id"))
+        if meta.get("app") == "parallel" and monitor_id:
             client.delete_monitor(monitor_id)
-            removed.append(name)
+            removed.append(monitor_id)
     return removed
