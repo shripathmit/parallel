@@ -101,7 +101,7 @@ class ParallelClient:
         carries excerpts[] / full_content. Verified docs.parallel.ai.
         """
         return self._post(
-            "/v1beta/extract", {"urls": [url], "objective": objective}
+            "/v1/extract", {"urls": [url], "objective": objective}
         )
 
     # ---- Task (deep research) ----
