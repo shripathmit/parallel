@@ -77,8 +77,18 @@ analysis = json.load(open("data/analyses/<event_id>.json"))
 print(json.dumps(run_simulation(ParallelClient(), analysis), indent=2))
 EOF
 
-# Phase 5: run the API service
+# Phase 5: run the API service + dashboard
 uvicorn src.surface.api:app --reload
+# -> http://localhost:8000/  (overview, events feed, event detail, monitors)
+# -> http://localhost:8000/docs  (JSON API)
+
+## Deploying to Railway
+
+The repo ships with `Procfile` and `railway.json` (Nixpacks build, `/health` healthcheck).
+
+1. In Railway: New Project → Deploy from GitHub repo → `shripathmit/parallel`
+2. Variables: `PARALLEL_API_KEY` (required for live features), `DATA_DIR` (default `data`), `WEBHOOK_BASE_URL` (your Railway public URL, so Parallel monitor webhooks can reach `/webhooks/parallel/monitor`)
+3. Add a Volume mounted at `/app/data` and set `DATA_DIR=/app/data` so events/analyses survive restarts (Railway's filesystem is ephemeral otherwise)
 
 # Tests (no API key needed)
 python -m unittest discover -s tests -v

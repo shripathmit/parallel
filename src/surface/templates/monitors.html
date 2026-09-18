@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}parallel · monitors{% endblock %}
+{% block content %}
+<h1>Monitors</h1>
+<p class="muted">Parallel Monitor API watches these FDA sources and POSTs change webhooks to <code>/webhooks/parallel/monitor</code>.</p>
+
+{% if live is not none %}
+<h2>Live monitors ({{ live | length }})</h2>
+{% if live %}
+<table>
+  <tr><th>Name</th><th>ID</th><th>Status</th></tr>
+  {% for m in live %}
+  <tr><td>{{ m.get('name', '?') }}</td><td class="muted">{{ m.get('id', '?') }}</td><td>{{ m.get('status', '?') }}</td></tr>
+  {% endfor %}
+</table>
+{% else %}
+<p class="muted">None running.</p>
+{% endif %}
+{% endif %}
+
+<h2>Configured sources</h2>
+<table>
+  <tr><th>Source</th><th>URL</th></tr>
+  {% for s in sources %}
+  <tr><td>{{ s.name }}</td><td><a href="{{ s.url }}" target="_blank" rel="noopener">{{ s.url[:70] }}</a></td></tr>
+  {% endfor %}
+</table>
+
+<div class="actions">
+  <form method="post" action="/ui/monitors/setup" style="display:inline">
+    <button type="submit" {% if not key_ok %}disabled title="Set PARALLEL_API_KEY first"{% endif %}>Start all monitors</button>
+  </form>
+  <form method="post" action="/ui/monitors/teardown" style="display:inline">
+    <button type="submit" class="danger" {% if not key_ok %}disabled title="Set PARALLEL_API_KEY first"{% endif %}>Stop all monitors</button>
+  </form>
+</div>
+<p class="muted small">Monitors need a public <code>WEBHOOK_BASE_URL</code> so Parallel can reach this service.</p>
+{% endblock %}

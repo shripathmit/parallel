@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}parallel{% endblock %}</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header>
+  <div class="brand"><a href="/"><span class="logo">∥</span> parallel</a> <span class="tag">FDA change intelligence</span></div>
+  <nav>
+    <a href="/" class="{% if active == 'home' %}on{% endif %}">Overview</a>
+    <a href="/ui/events" class="{% if active == 'events' %}on{% endif %}">Events</a>
+    <a href="/ui/monitors" class="{% if active == 'monitors' %}on{% endif %}">Monitors</a>
+    <a href="/docs">API</a>
+  </nav>
+  <div class="key {{ 'ok' if key_ok else 'missing' }}" title="Parallel API key status">{{ '● key set' if key_ok else '○ key missing' }}</div>
+</header>
+{% if error %}
+<div class="banner error">{{ error }}</div>
+{% endif %}
+{% if notice %}
+<div class="banner notice">{{ notice }}</div>
+{% endif %}
+<main>
+{% block content %}{% endblock %}
+</main>
+<footer>sense → understand → clone → simulate → surface</footer>
+</body>
+</html>

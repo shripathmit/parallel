@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}parallel · overview{% endblock %}
+{% block content %}
+<h1>Pipeline overview</h1>
+
+<div class="cards">
+  <div class="card"><div class="num">{{ stats.total }}</div><div class="lbl">change events</div></div>
+  <div class="card"><div class="num">{{ stats.raw }}</div><div class="lbl">awaiting analysis</div></div>
+  <div class="card"><div class="num">{{ stats.analyzed }}</div><div class="lbl">analyzed</div></div>
+  <div class="card"><div class="num">{{ stats.simulated }}</div><div class="lbl">simulated</div></div>
+  <div class="card"><div class="num">{{ stats.monitors }}</div><div class="lbl">monitors live</div></div>
+</div>
+
+<div class="pipeline">
+  <div class="stage"><b>1 · Sense</b><span>Monitors watch FDA sources; webhooks become change events</span></div>
+  <div class="arrow">→</div>
+  <div class="stage"><b>2 · Understand</b><span>Task API classifies each change + scores impact</span></div>
+  <div class="arrow">→</div>
+  <div class="stage"><b>3 · Clone</b><span>Enforcement / reviewer / sponsor behavior clones</span></div>
+  <div class="arrow">→</div>
+  <div class="stage"><b>4 · Simulate</b><span>Clones predict stakeholder response side-by-side</span></div>
+  <div class="arrow">→</div>
+  <div class="stage"><b>5 · Surface</b><span>Alerts on severity ≥ 4, this dashboard, API</span></div>
+</div>
+
+<h2>Recent events</h2>
+{% if recent %}
+<table>
+  <tr><th>Detected</th><th>Source</th><th>Title</th><th>Type</th><th>Status</th></tr>
+  {% for e in recent %}
+  <tr>
+    <td class="muted">{{ e.detected_at[:16].replace('T', ' ') }}</td>
+    <td>{{ e.source }}</td>
+    <td><a href="/ui/events/{{ e.id }}">{{ e.title or e.url }}</a></td>
+    <td>{{ e.change_type }}</td>
+    <td><span class="badge {{ e.status }}">{{ e.status }}</span></td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}
+<p class="muted">No events yet. {% if not key_ok %}Set <code>PARALLEL_API_KEY</code> and backfill history or wait for monitor webhooks.{% else %}Run a <a href="/ui/monitors">monitor backfill</a> to seed history.{% endif %}</p>
+{% endif %}
+{% endblock %}

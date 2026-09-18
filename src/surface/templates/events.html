@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}parallel · events{% endblock %}
+{% block content %}
+<h1>Change events</h1>
+
+<div class="filters">
+  {% for f in ['all', 'raw', 'analyzed', 'simulated'] %}
+  <a href="/ui/events?status={{ f }}" class="chip {% if status == f %}on{% endif %}">{{ f }}</a>
+  {% endfor %}
+</div>
+
+{% if events %}
+<table>
+  <tr><th>Detected</th><th>Source</th><th>Title</th><th>Type</th><th>Status</th><th></th></tr>
+  {% for e in events %}
+  <tr>
+    <td class="muted">{{ e.detected_at[:16].replace('T', ' ') }}</td>
+    <td>{{ e.source }}</td>
+    <td>{{ e.title or e.url }}</td>
+    <td>{{ e.change_type }}</td>
+    <td><span class="badge {{ e.status }}">{{ e.status }}</span></td>
+    <td><a class="btn small" href="/ui/events/{{ e.id }}">Open</a></td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}
+<p class="muted">No events with this status.</p>
+{% endif %}
+{% endblock %}

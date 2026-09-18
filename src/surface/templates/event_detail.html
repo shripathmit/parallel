@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}parallel · event{% endblock %}
+{% block content %}
+<p><a href="/ui/events">← all events</a></p>
+<h1>{{ event.title or 'Untitled change' }}</h1>
+
+<div class="meta">
+  <div><span class="k">Source</span> {{ event.source }}</div>
+  <div><span class="k">Detected</span> {{ event.detected_at[:16].replace('T', ' ') }} UTC</div>
+  <div><span class="k">Status</span> <span class="badge {{ event.status }}">{{ event.status }}</span></div>
+  <div><span class="k">URL</span> <a href="{{ event.url }}" target="_blank" rel="noopener">{{ event.url[:80] }}</a></div>
+</div>
+
+{% if event.raw_diff %}
+<h2>Raw diff</h2>
+<pre class="diff">{{ event.raw_diff[:4000] }}</pre>
+{% endif %}
+
+<h2>Analysis</h2>
+{% if analysis %}
+<div class="analysis">
+  <div class="sev sev{{ analysis.severity or 0 }}">severity {{ analysis.severity or '?' }}/5</div>
+  <div><span class="k">Change type</span> {{ analysis.change_type }}</div>
+  <p>{{ analysis.summary }}</p>
+  {% if analysis.affected_product_codes %}
+  <div><span class="k">Product codes</span> {{ analysis.affected_product_codes | join(', ') }}</div>
+  {% endif %}
+  {% if analysis.affected_submission_types %}
+  <div><span class="k">Submission types</span> {{ analysis.affected_submission_types | join(', ') }}</div>
+  {% endif %}
+  {% if analysis.citations %}
+  <div><span class="k">Citations</span>
+    <ul>{% for c in analysis.citations %}<li><a href="{{ c }}" target="_blank" rel="noopener">{{ c[:90] }}</a></li>{% endfor %}</ul>
+  </div>
+  {% endif %}
+  <div class="muted">confidence {{ analysis.confidence }}</div>
+</div>
+{% else %}
+<p class="muted">Not analyzed yet.</p>
+<form method="post" action="/ui/events/{{ event.id }}/analyze">
+  <button type="submit" {% if not key_ok %}disabled title="Set PARALLEL_API_KEY first"{% endif %}>Run analysis</button>
+</form>
+{% endif %}
+
+<h2>Simulation</h2>
+{% if simulation %}
+<div class="clones">
+  {% for name, pred in simulation.predictions.items() %}
+  <div class="clone">
+    <h3>{{ name }}</h3>
+    {% if pred.error %}
+    <p class="error-text">error: {{ pred.error }}</p>
+    {% else %}
+    <p>{{ pred.prediction or pred }}</p>
+    {% if pred.citations %}
+    <ul class="cites">{% for c in pred.citations %}<li><a href="{{ c }}" target="_blank" rel="noopener">{{ c[:70] }}</a></li>{% endfor %}</ul>
+    {% endif %}
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% elif analysis %}
+<p class="muted">No simulation yet.</p>
+<form method="post" action="/ui/events/{{ event.id }}/simulate">
+  <button type="submit" {% if not key_ok %}disabled title="Set PARALLEL_API_KEY first"{% endif %}>Run simulation</button>
+</form>
+{% else %}
+<p class="muted">Analyze the event first, then simulate.</p>
+{% endif %}
+{% endblock %}
