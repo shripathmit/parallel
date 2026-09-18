@@ -116,6 +116,16 @@
     </ul>
     {% endif %}
     {% if pred.reasoning %}<p style="font-size:13px;color:var(--text-2);">{{ pred.reasoning }}</p>{% endif %}
+    {% if pred.patterns_used %}
+    <div style="margin:10px 0;">
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;color:var(--text-3);margin-bottom:6px;">Patterns fired</div>
+      <div class="chips">
+        {% for pu in pred.patterns_used %}
+        <span class="chip" title="relevance {{ pu.score }} · confidence {{ (pu.confidence*100)|round(0) }}% · triggers: {{ pu.matched_triggers|join(', ') }}">{{ pu.name }} · {{ (pu.confidence*100)|round(0) }}%</span>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
     <div class="foot-note">
       <span>{{ pred.timeline or '' }}</span>
       <span>Confidence: <strong>{{ pred.confidence or '—' }}</strong></span>

@@ -19,6 +19,8 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from config import load_settings
+from src.clones.clone import Clone
+from src.clones.patterns import PatternStore, match_patterns
 from src.clones.profiles import ALL_PROFILES
 from src.demo_seed import seed as seed_demo
 from src.par_client import PLACEHOLDER_KEY, ParallelAPIError, ParallelClient
@@ -58,6 +60,21 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="parallel", version="0.3.0", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
+
+
+def _pattern_store() -> PatternStore:
+    return PatternStore(settings.data_dir)
+
+
+def _build_clones(client: ParallelClient, analysis: dict) -> list:
+    """Clones grounded in the pattern library: match_patterns selects the
+    evidence each clone reasons from, per stakeholder."""
+    patterns = _pattern_store().list()
+    clones = []
+    for profile in ALL_PROFILES:
+        matched = match_patterns(analysis, patterns, profile["name"])
+        clones.append(Clone(client, profile, patterns=matched))
+    return clones
 
 
 def _has_demo() -> bool:
@@ -216,7 +233,9 @@ def simulate_event(event_id: str):
         raise HTTPException(
             status_code=400, detail="No analysis stored; POST /events/{id}/analyze first"
         )
-    result = run_simulation(ParallelClient(), analysis)
+    result = run_simulation(
+        ParallelClient(), analysis, clones=_build_clones(ParallelClient(), analysis)
+    )
     _save_simulation(event_id, result)
     store.mark_processed(event_id, "simulated")
     return {"event_id": event_id, **result}
@@ -358,7 +377,8 @@ def ui_simulate_event(event_id: str):
             status_code=303,
         )
     try:
-        result = run_simulation(ParallelClient(), analysis)
+        client = ParallelClient()
+        result = run_simulation(client, analysis, clones=_build_clones(client, analysis))
     except ParallelAPIError as exc:
         return RedirectResponse(
             f"/ui/events/{event_id}?error=Simulation failed: {exc}", status_code=303
@@ -381,10 +401,20 @@ def ui_clones(request: Request):
         for name, pred in (sim.get("predictions") or {}).items():
             if name not in latest:
                 latest[name] = {"event": event, "pred": pred}
+    patterns = _pattern_store().list()
+    by_stakeholder = {}
+    for p in patterns:
+        by_stakeholder.setdefault(p.stakeholder, []).append(p)
     return templates.TemplateResponse(
         request,
         "clones.html",
-        _ctx(request, "clones", profiles=ALL_PROFILES, latest=latest),
+        _ctx(
+            request,
+            "clones",
+            profiles=ALL_PROFILES,
+            latest=latest,
+            by_stakeholder=by_stakeholder,
+        ),
     )
 
 

@@ -37,10 +37,42 @@
 
 <div class="card">
   <h3>How clones are built</h3>
-  <p style="color:var(--text-2);font-size:13.5px;max-width:820px;margin:0;">
-    <strong>1. Mine</strong> — Parallel FindAll scans FDA records (warning letters, 510(k) decision summaries, recalls) and the Task API distills recurring behavior patterns per stakeholder.
-    <strong>2. Encode</strong> — patterns become the system prompts above, refreshed as new records arrive.
-    <strong>3. Simulate</strong> — every analyzed change is run through all three clones in parallel via the Chat API, producing the side-by-side predictions you see on each event.
+  <p style="color:var(--text-2);font-size:13.5px;max-width:820px;margin:0 0 4px;">
+    <strong>1. Mine</strong> — Parallel FindAll scans FDA records (warning letters, 510(k) decision summaries, recalls) and the Task API distills recurring behavior patterns per stakeholder into the library below.
+    <strong>2. Match</strong> — for each new change, a deterministic matcher scores every pattern by trigger coverage × confidence and hands the top matches to that stakeholder's clone.
+    <strong>3. Reason</strong> — the clone predicts from the analysis <em>plus</em> its matched patterns, and cites which patterns fired.
   </p>
 </div>
+
+<h2 class="section-title">Pattern library</h2>
+<p style="color:var(--text-2);font-size:13.5px;margin:-4px 0 12px;max-width:860px;">The evidence base. Each pattern names its trigger phrases, typical actions, supporting FDA records, and confidence. Mined patterns arrive via the mining pipeline; demo patterns are distilled from the real publications in the demo set.</p>
+{% for stakeholder in ['enforcement','reviewer','sponsor'] %}
+<h3 style="font-size:13px;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-3);margin:20px 0 10px;">{{ stakeholder }}</h3>
+<div class="grid two">
+  {% for p in by_stakeholder.get(stakeholder, []) %}
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px;">
+      <span style="font-family:var(--mono);font-weight:700;font-size:13.5px;">{{ p.name }}</span>
+      <span style="display:flex;gap:6px;align-items:center;">
+        {% if p.demo %}<span class="pill demo">demo</span>{% endif %}
+        <span class="pill">{{ (p.confidence*100)|round(0) }}% conf</span>
+      </span>
+    </div>
+    <p style="font-size:13.5px;color:var(--text-2);">{{ p.description }}</p>
+    <div class="chips">{% for t in p.triggers %}<span class="chip">{{ t }}</span>{% endfor %}</div>
+    {% if p.typical_actions %}
+    <ul class="action-list" style="margin-top:8px;">
+      {% for a in p.typical_actions %}<li>{{ a }}</li>{% endfor %}
+    </ul>
+    {% endif %}
+    <div class="foot-note"><span>{{ p.support }} supporting records</span><span>v{{ p.version }}</span></div>
+    {% if p.evidence_citations %}
+    <ul class="cite-list">
+      {% for c in p.evidence_citations %}<li><a href="{{ c }}" target="_blank" rel="noopener">{{ c[:72] }}…</a></li>{% endfor %}
+    </ul>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% endfor %}
 {% endblock %}

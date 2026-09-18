@@ -544,6 +544,7 @@ SIMULATIONS = {
 
 def seed(data_dir: str) -> dict:
     """Write demo events + demo payloads. Idempotent: skips if events exist."""
+    from src.clones.patterns import PatternStore, match_patterns, seed_demo_patterns
     from src.sense.events import EventStore, ChangeEvent
 
     data = Path(data_dir)
@@ -553,6 +554,13 @@ def seed(data_dir: str) -> dict:
 
     demo_dir = data / DEMO_DIRNAME
     demo_dir.mkdir(parents=True, exist_ok=True)
+
+    # Seed the pattern library first; predictions below attach patterns_used
+    # using the real match_patterns algorithm (not hand-picked).
+    pattern_store = PatternStore(str(data))
+    for pattern in seed_demo_patterns():
+        pattern_store.add(pattern)
+    all_patterns = pattern_store.list()
 
     for spec in EVENTS:
         event = ChangeEvent(
@@ -571,13 +579,28 @@ def seed(data_dir: str) -> dict:
         (demo_dir / f"{eid}.analysis.json").write_text(
             json.dumps({"demo": True, **ANALYSES[eid]}, indent=2), encoding="utf-8"
         )
+        analysis = ANALYSES[eid]
         sim = {
             "demo": True,
-            "change_summary": ANALYSES[eid]["summary"],
-            "change_type": ANALYSES[eid]["change_type"],
-            "severity": ANALYSES[eid]["severity"],
+            "change_summary": analysis["summary"],
+            "change_type": analysis["change_type"],
+            "severity": analysis["severity"],
             "predictions": {
-                name: {"clone": name, **SIMULATIONS[eid][name]}
+                name: {
+                    "clone": name,
+                    **SIMULATIONS[eid][name],
+                    "patterns_used": [
+                        {
+                            "name": p.name,
+                            "score": score,
+                            "confidence": p.confidence,
+                            "matched_triggers": matched,
+                        }
+                        for p, score, matched in match_patterns(
+                            analysis, all_patterns, name
+                        )
+                    ],
+                }
                 for name in ("enforcement", "reviewer", "sponsor")
             },
         }

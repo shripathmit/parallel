@@ -32,9 +32,17 @@ def _extract_content(chat_response: dict) -> str:
 
 
 class Clone:
-    def __init__(self, client: ParallelClient, profile: dict):
+    """A behavior-pattern clone: profile + pattern library + Chat API runtime.
+
+    patterns: list of (Pattern, score, matched_triggers) from match_patterns().
+    They are injected into the prompt as the clone's evidence base, and echoed
+    back in the result as patterns_used so predictions stay explainable.
+    """
+
+    def __init__(self, client: ParallelClient, profile: dict, patterns=None):
         self.client = client
         self.profile = profile
+        self.patterns = patterns or []
 
     def ask(self, question: str, context: str = "") -> dict:
         """Ask the clone a question with optional context; returns answer + citations."""
@@ -52,12 +60,35 @@ class Clone:
         }
 
     def respond_to_change(self, change_analysis: dict) -> dict:
-        """Predict this stakeholder's behavior in response to an analyzed change."""
+        """Predict this stakeholder's behavior in response to an analyzed change.
+
+        Algorithm:
+          1. matched patterns (computed by match_patterns, passed at init) are
+             rendered into the prompt as the clone's evidence base;
+          2. the Chat API reasons from the analysis + those patterns;
+          3. the result cites which patterns fired, with scores.
+        """
+        pattern_lines = []
+        for pattern, score, matched in self.patterns:
+            ev = "; ".join(pattern.evidence_citations[:2])
+            pattern_lines.append(
+                f"- {pattern.name} (relevance {score:.2f}, confidence "
+                f"{pattern.confidence:.0%}, fired on: {', '.join(matched)}): "
+                f"{pattern.description} Evidence: {ev}"
+            )
+        pattern_block = ""
+        if pattern_lines:
+            pattern_block = (
+                "\n\nKnown behavior patterns for this stakeholder (distilled from FDA "
+                "records). Ground your prediction in the ones that apply and name them:\n"
+                + "\n".join(pattern_lines)
+            )
         question = (
             "A new FDA regulatory change has been analyzed (details in Context). "
             f"As a {self.profile['role']}, predict how this stakeholder behaves in "
             "response: concrete actions, likely timelines, and what would change your "
-            "prediction. End with a confidence level (high/medium/low) and why."
+            "prediction." + pattern_block +
+            " End with a confidence level (high/medium/low) and why."
         )
         context = json.dumps(change_analysis, indent=2)[:12000]
         out = self.ask(question, context=context)
@@ -66,4 +97,13 @@ class Clone:
             "role": self.profile["role"],
             "prediction": out["answer"],
             "citations": out["citations"],
+            "patterns_used": [
+                {
+                    "name": p.name,
+                    "score": score,
+                    "confidence": p.confidence,
+                    "matched_triggers": matched,
+                }
+                for p, score, matched in self.patterns
+            ],
         }

@@ -49,3 +49,31 @@ def mine_patterns(
     if isinstance(output, dict):
         return output.get("patterns", [])
     return []
+
+
+def mine_and_store(client: ParallelClient, data_dir: str, stakeholder: str) -> list:
+    """Mine patterns for one stakeholder and persist them to the PatternStore.
+
+    This closes the loop: FindAll + Task distill patterns -> stored as evidence
+    -> match_patterns fires them -> clones reason from them.
+    """
+    from src.clones.patterns import Pattern, PatternStore
+
+    mined = mine_patterns(client, stakeholder)
+    store = PatternStore(data_dir)
+    stored = []
+    for m in mined:
+        pattern = Pattern(
+            name=m.get("pattern_name", f"{stakeholder}-pattern"),
+            stakeholder=m.get("stakeholder", stakeholder),
+            triggers=[],  # triggers are curated when a human reviews the pattern
+            description=m.get("description", ""),
+            typical_actions=[],
+            evidence_citations=m.get("evidence_citations", []),
+            confidence=float(m.get("confidence", 0.5)),
+            support=1,
+            demo=False,
+        )
+        store.add(pattern)
+        stored.append(pattern)
+    return stored
