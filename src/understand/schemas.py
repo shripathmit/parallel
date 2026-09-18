@@ -30,8 +30,7 @@ CHANGE_ANALYSIS_SCHEMA = {
         },
         "severity": {
             "type": "integer",
-            "minimum": 1,
-            "maximum": 5,
+            "enum": [1, 2, 3, 4, 5],
             "description": "1 = informational, 5 = business-critical compliance impact.",
         },
         "citations": {
@@ -41,9 +40,7 @@ CHANGE_ANALYSIS_SCHEMA = {
         },
         "confidence": {
             "type": "number",
-            "minimum": 0,
-            "maximum": 1,
-            "description": "Model confidence in the analysis.",
+            "description": "Model confidence in the analysis, 0 to 1.",
         },
     },
 }
@@ -72,8 +69,7 @@ BEHAVIOR_PATTERN_SCHEMA = {
         },
         "confidence": {
             "type": "number",
-            "minimum": 0,
-            "maximum": 1,
+            "description": "Confidence in this pattern, 0 to 1.",
         },
     },
 }

@@ -153,11 +153,43 @@ class ParallelClient:
         raise ParallelAPIError(f"Task {run_id} timed out after {timeout}s")
 
     # ---- Chat ----
-    def chat(self, messages, system=None, model="parallel-chat"):
+    # Verified 2026-09-18 via parallel-web migration guide:
+    #   POST https://api.parallel.ai/chat/completions (NOT /v1/chat/completions)
+    #   Auth: Bearer (x-api-key also sent; harmless if ignored)
+    #   Models: speed (low-latency) | lite | base | core (research models)
+    #   response_format json_schema supported on research models.
+    def chat(self, messages, system=None, model="core", response_format=None):
         """OpenAI-compatible chat completions with web grounding."""
-        # TODO: verify model name and grounding parameters against docs.parallel.ai
         msgs = ([{"role": "system", "content": system}] if system else []) + list(messages)
-        return self._post("/v1/chat/completions", {"model": model, "messages": msgs})
+        body = {"model": model, "messages": msgs}
+        if response_format is not None:
+            body["response_format"] = response_format
+        headers = dict(self._headers())
+        headers["Authorization"] = f"Bearer {self._api_key}"
+        return self._post_raw("/chat/completions", body, headers=headers)
+
+    def _post_raw(self, path, body, headers, timeout=None):
+        """POST with explicit headers (used by Chat's Bearer auth)."""
+        url = self.base_url + path
+        data = json.dumps(body).encode("utf-8")
+        req = urllib.request.Request(url, data=data, method="POST", headers=headers)
+        try:
+            with urllib.request.urlopen(req, timeout=timeout or self.timeout) as resp:
+                raw = resp.read().decode("utf-8")
+                return json.loads(raw) if raw else {}
+        except urllib.error.HTTPError as exc:
+            try:
+                payload = json.loads(exc.read().decode("utf-8"))
+            except Exception:
+                payload = None
+            detail = (payload or {}).get("message") or (payload or {}).get("detail")
+            if detail is None and payload is not None:
+                detail = json.dumps(payload)[:500]
+            raise ParallelAPIError(
+                f"POST {path} -> HTTP {exc.code}: {detail or 'request failed'}",
+                status=exc.code,
+                payload=payload,
+            )
 
     # ---- FindAll ----
     def findall(self, objective, criteria=None):
