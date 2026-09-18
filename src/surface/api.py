@@ -13,7 +13,7 @@ import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -290,6 +290,35 @@ def ui_events(
             q=q,
             sev_of=_severity_of,
         ),
+    )
+
+
+@app.post("/ui/events/ingest")
+def ui_ingest_event(
+    url: str = Form(...), title: str = Form(""), source: str = Form("manual")
+):
+    """Manually ingest a URL as a new change event (real pipeline, needs API key)."""
+    if not _key_ok():
+        return RedirectResponse(
+            "/ui/events?error=Set PARALLEL_API_KEY to ingest live events",
+            status_code=303,
+        )
+    url = (url or "").strip()
+    if not url.startswith(("http://", "https://")):
+        return RedirectResponse(
+            "/ui/events?error=URL must start with http:// or https://",
+            status_code=303,
+        )
+    event = ChangeEvent(
+        source=(source or "manual").strip() or "manual",
+        url=url,
+        title=(title or "").strip() or url,
+        status="raw",
+    )
+    store.append(event)
+    return RedirectResponse(
+        f"/ui/events/{event.id}?notice=Event ingested — run analysis next",
+        status_code=303,
     )
 
 

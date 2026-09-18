@@ -9,6 +9,16 @@
   </div>
 </div>
 
+<div class="card" style="margin-bottom:16px;">
+  <h3 style="margin-bottom:8px;">Ingest a URL</h3>
+  <form method="post" action="/ui/events/ingest" style="display:flex;gap:8px;flex-wrap:wrap;">
+    <input class="input" type="url" name="url" placeholder="https://www.fda.gov/… — FDA publication URL" required style="flex:2;min-width:240px;">
+    <input class="input" type="text" name="title" placeholder="Title (optional)" style="flex:1;min-width:160px;">
+    <button class="btn primary" type="submit">Ingest &amp; detect</button>
+  </form>
+  <div class="foot-note" style="margin-top:8px;"><span>Runs the live pipeline: Extract → Task analysis → clone simulation. Requires PARALLEL_API_KEY.</span></div>
+</div>
+
 <form class="filters" method="get" action="/ui/events">
   <input class="input" type="search" name="q" placeholder="Search title, source, URL…" value="{{ q }}">
   <select class="input" name="status">
