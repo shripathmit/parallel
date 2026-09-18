@@ -113,13 +113,13 @@
     {% if pred.error %}
     <p style="color:var(--red-text);">Clone failed: {{ pred.error }}</p>
     {% else %}
-    <div class="verdict">{{ pred.verdict }}</div>
-    {% if pred.actions %}
-    <ul class="action-list">
-      {% for a in pred.actions %}<li>{{ a }}</li>{% endfor %}
-    </ul>
+    {% if pred.prediction %}<div style="font-size:13.5px;line-height:1.6;white-space:pre-wrap;">{{ pred.prediction }}</div>{% endif %}
+    {% if pred.citations %}
+    <div style="margin-top:10px;font-size:12px;">
+      <span style="color:var(--text-3);">Sources: </span>
+      {% for c in pred.citations[:4] %}<a href="{{ c }}" target="_blank" rel="noopener">{{ c[:60] }}</a>{% if not loop.last %}, {% endif %}{% endfor %}
+    </div>
     {% endif %}
-    {% if pred.reasoning %}<p style="font-size:13px;color:var(--text-2);">{{ pred.reasoning }}</p>{% endif %}
     {% if pred.patterns_used %}
     <div style="margin:10px 0;">
       <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;color:var(--text-3);margin-bottom:6px;">Patterns fired</div>
