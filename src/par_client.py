@@ -107,29 +107,46 @@ class ParallelClient:
         )
 
     # ---- Task (deep research) ----
-    def task_run(self, objective, output_schema=None, webhook_url=None):
+    # Verified against public integrations of docs.parallel.ai (2026-09-18):
+    #   POST /v1/tasks/runs {input, processor, task_spec:{output_schema:{type:"json",json_schema}}}
+    #   -> 202 {run_id, status}; GET /v1/tasks/runs/{id} -> status;
+    #   GET /v1/tasks/runs/{id}/result -> {output:{content, basis}}.
+    # Note: create is NOT idempotent — never retry it blindly.
+    def task_run(self, objective, output_schema=None, processor="core"):
         """Start an async deep-research run. Returns a run handle with a run id."""
-        body = {"objective": objective}
+        body = {"input": objective, "processor": processor}
         if output_schema is not None:
-            body["output_schema"] = output_schema  # TODO: verify field name
-        if webhook_url:
-            body["webhook_url"] = webhook_url  # TODO: verify field name
+            body["task_spec"] = {
+                "output_schema": {"type": "json", "json_schema": output_schema}
+            }
         return self._post("/v1/tasks/runs", body, timeout=self.timeout)
 
-    def task_result(self, run_id):
-        """Fetch the current state/result of a task run."""
-        # TODO: verify against docs.parallel.ai (endpoint path + status/output fields)
+    def task_status(self, run_id):
+        """Fetch the current status of a task run (status only)."""
         return self._get(f"/v1/tasks/runs/{run_id}")
 
-    def wait_for_task(self, run_id, timeout=600, interval=10):
+    def task_output(self, run_id):
+        """Fetch the completed result of a task run: {output:{content, basis}}."""
+        res = self._get(f"/v1/tasks/runs/{run_id}/result")
+        out = res.get("output", res) if isinstance(res, dict) else res
+        content = out.get("content") if isinstance(out, dict) else None
+        if isinstance(content, dict):
+            return content
+        if isinstance(content, str):
+            try:
+                return json.loads(content)
+            except Exception:
+                return {"raw_output": content}
+        return out if isinstance(out, dict) else {"raw_output": out}
+
+    def wait_for_task(self, run_id, timeout=900, interval=15):
         """Poll a task run until it completes; returns the parsed output payload."""
         deadline = time.time() + timeout
         while time.time() < deadline:
-            res = self.task_result(run_id)
+            res = self.task_status(run_id)
             status = str(res.get("status", "")).lower()
             if status in ("completed", "succeeded", "success", "done"):
-                # TODO: verify the output field name against docs.parallel.ai
-                return res.get("output", res.get("result", res))
+                return self.task_output(run_id)
             if status in ("failed", "error", "cancelled"):
                 raise ParallelAPIError(f"Task {run_id} ended with status '{status}'")
             time.sleep(interval)
