@@ -62,10 +62,12 @@ class ParallelClient:
                 payload = json.loads(exc.read().decode("utf-8"))
             except Exception:
                 payload = None
-            # Never include the key in error output.
+            # Never include the key in error output (payload is the response body).
+            detail = (payload or {}).get("message") or (payload or {}).get("detail")
+            if detail is None and payload is not None:
+                detail = json.dumps(payload)[:500]
             raise ParallelAPIError(
-                f"{method} {path} -> HTTP {exc.code}: "
-                f"{(payload or {}).get('message', 'request failed')}",
+                f"{method} {path} -> HTTP {exc.code}: {detail or 'request failed'}",
                 status=exc.code,
                 payload=payload,
             )
