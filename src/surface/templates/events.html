@@ -2,24 +2,25 @@
 {% from "base.html" import sev_pill, status_pill %}
 {% block title %}parallel · events{% endblock %}
 {% block content %}
-<div class="page-head">
+<div class="page-head reveal">
   <div>
+    <div class="eyebrow">Sense</div>
     <h1>Events</h1>
     <div class="sub">{{ events|length }} change event{{ 's' if events|length != 1 }} detected across FDA sources.</div>
   </div>
 </div>
 
-<div class="card" style="margin-bottom:16px;">
-  <h3 style="margin-bottom:8px;">Ingest a URL</h3>
-  <form method="post" action="/ui/events/ingest" style="display:flex;gap:8px;flex-wrap:wrap;">
+<div class="card lift reveal" style="margin-bottom:16px;--d:.05s;">
+  <h3>Ingest a URL</h3>
+  <form method="post" action="/ui/events/ingest" style="display:flex;gap:10px;flex-wrap:wrap;">
     <input class="input" type="url" name="url" placeholder="https://www.fda.gov/… — FDA publication URL" required style="flex:2;min-width:240px;">
     <input class="input" type="text" name="title" placeholder="Title (optional)" style="flex:1;min-width:160px;">
     <button class="btn primary" type="submit">Ingest &amp; detect</button>
   </form>
-  <div class="foot-note" style="margin-top:8px;"><span>Runs the live pipeline: Extract → Task analysis → clone simulation. Requires PARALLEL_API_KEY.</span></div>
+  <div class="foot-note" style="margin-top:10px;"><span>Runs the live pipeline: Extract → Task analysis → clone simulation. Requires PARALLEL_API_KEY.</span></div>
 </div>
 
-<form class="filters" method="get" action="/ui/events">
+<form class="filters reveal" method="get" action="/ui/events" style="--d:.1s;">
   <input class="input" type="search" name="q" placeholder="Search title, source, URL…" value="{{ q }}">
   <select class="input" name="status">
     <option value="all" {% if status=='all' %}selected{% endif %}>All statuses</option>
@@ -39,7 +40,7 @@
   {% endif %}
 </form>
 
-<div class="card flush">
+<div class="card flush reveal" style="--d:.12s;">
   {% if events %}
   <table class="tbl">
     <thead><tr><th>Event</th><th>Source</th><th>Detected</th><th>Severity</th><th>Status</th></tr></thead>
@@ -60,7 +61,7 @@
     </tbody>
   </table>
   {% else %}
-  <div class="empty"><div class="big">No events match</div>Try clearing the filters.</div>
+  <div class="empty"><div class="big">No events match</div><p>Try clearing the filters.</p></div>
   {% endif %}
 </div>
 {% endblock %}

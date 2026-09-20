@@ -2,33 +2,35 @@
 {% from "base.html" import sev_pill, status_pill %}
 {% block title %}parallel · {{ event.title[:60] }}{% endblock %}
 {% block content %}
-<div class="breadcrumb"><a href="/ui/events">← All events</a></div>
+<div class="breadcrumb reveal"><a href="/ui/events">← All events</a></div>
 
 {% if error %}<div class="flash error">{{ error }}</div>{% endif %}
 {% if notice %}<div class="flash notice">{{ notice }}</div>{% endif %}
 
-<div class="badge-row">
+<div class="badge-row reveal" style="--d:.03s;">
   {{ status_pill(event.status) }}
   {% if analysis and analysis.severity %}{{ sev_pill(analysis.severity) }}{% endif %}
   {% if event.demo %}<span class="pill demo">DEMO DATA</span>{% endif %}
   <span class="pill">{{ event.change_type|replace('_',' ')|capitalize }}</span>
 </div>
 
-<h1 class="detail-title">{{ event.title }}</h1>
-<div class="detail-meta">
-  <span>{{ event.source }}</span>
-  <span>Detected {{ event.detected_at[:10] }}</span>
-  <span><a href="{{ event.url }}" target="_blank" rel="noopener">Open source ↗</a></span>
+<div class="reveal" style="--d:.06s;">
+  <h1 class="detail-title">{{ event.title }}</h1>
+  <div class="detail-meta">
+    <span>{{ event.source }}</span>
+    <span>Detected {{ event.detected_at[:10] }}</span>
+    <span><a href="{{ event.url }}" target="_blank" rel="noopener">Open source ↗</a></span>
+  </div>
 </div>
 
 {% if event.status in ('analyzing','simulating') %}
-<div class="progress-note"><span class="spinner"></span>
+<div class="progress-note reveal" style="--d:.08s;"><span class="spinner"></span>
   {{ 'Analysis' if event.status == 'analyzing' else 'Simulation' }} running in the background — this page will show results on refresh. No need to re-submit.
 </div>
 {% endif %}
 
-<div class="card" style="margin-top:14px;">
-  <div class="btn-row">
+<div class="card reveal" style="margin-top:16px;--d:.1s;">
+  <div class="action-bar">
     {% if not analysis and event.status not in ('analyzing',) %}
     <form method="post" action="/ui/events/{{ event.id }}/analyze"><button class="btn primary" type="submit">Run analysis</button></form>
     {% endif %}
@@ -44,7 +46,7 @@
   {% endif %}
 </div>
 
-<div class="tabs" role="tablist">
+<div class="tabs reveal" role="tablist" style="--d:.12s;">
   <button class="active" data-tab="analysis" role="tab">Analysis</button>
   <button data-tab="predictions" role="tab" {% if not simulation %}disabled style="opacity:.4;cursor:default;"{% endif %}>Predictions{% if simulation %} · 3 clones{% endif %}</button>
   <button data-tab="evidence" role="tab">Evidence</button>
@@ -53,13 +55,13 @@
 <div class="tabpane active" id="tab-analysis">
   {% if analysis %}
   <p class="summary">{{ analysis.summary }}</p>
-  <div class="card" style="margin-top:14px;">
+  <div class="card lift" style="margin-top:18px;">
     <dl class="kv">
       <dt>Change type</dt><dd style="text-transform:capitalize;">{{ analysis.change_type|replace('_',' ') }}</dd>
       <dt>Severity</dt><dd>{{ sev_pill(analysis.severity) }}</dd>
       <dt>Confidence</dt>
       <dd>
-        <span class="conf-bar"><span class="conf-fill" style="width:{{ (analysis.confidence*100)|round(0) }}%"></span></span>
+        <span class="conf-bar"><span class="conf-fill" data-w="{{ (analysis.confidence*100)|round(0) }}"></span></span>
         <span style="margin-left:8px;font-weight:650;">{{ (analysis.confidence*100)|round(0) }}%</span>
       </dd>
       {% if analysis.affected_product_codes %}
@@ -131,7 +133,10 @@
   {% set all_patterns = pattern_sets.values()|sum(start=[]) | unique | list %}
   {% set shared = [] %}{% set split = [] %}
   {% for pat in all_patterns %}
-    {% set holders = pattern_sets.items()|selectattr('1', 'contains', pat)|map(attribute='0')|list %}
+    {% set holders = [] %}
+    {% for n, plist in pattern_sets.items() %}
+      {% if pat in plist %}{% set _ = holders.append(n) %}{% endif %}
+    {% endfor %}
     {% if holders|length == names|length %}{% set _ = shared.append(pat) %}{% else %}{% set _ = split.append((pat, holders)) %}{% endif %}
   {% endfor %}
   {% if split %}
@@ -145,7 +150,7 @@
   {% endif %}
   <div class="grid three">
     {% for n in names %}{% set p = preds.get(n, {}) %}
-    <div class="card clone-card">
+    <div class="card clone-card lift">
       <div class="clone-head">
         <span class="clone-avatar {{ n }}">{{ n[0]|upper }}</span>
         <div class="who"><div class="name">{{ n }}</div><div class="role">{{ roles[n] }}</div></div>

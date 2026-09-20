@@ -2,10 +2,11 @@
 {% from "base.html" import sev_pill, status_pill %}
 {% block title %}parallel · overview{% endblock %}
 {% block content %}
-<div class="page-head">
+<div class="page-head reveal">
   <div>
+    <div class="eyebrow">FDA change intelligence</div>
     <h1>Overview</h1>
-    <div class="sub">FDA change intelligence — sense, understand, clone, simulate.</div>
+    <div class="sub">Sense, understand, clone, simulate — every FDA change, and what each stakeholder does next.</div>
   </div>
   <div class="btn-row">
     <a class="btn" href="/ui/events">Browse events</a>
@@ -14,8 +15,8 @@
 </div>
 
 {% if queue %}
-<div class="card flush" style="margin-bottom:14px;">
-  <h3>Needs attention · {{ queue|length }}</h3>
+<div class="card flush reveal" style="margin-bottom:16px;--d:.05s;">
+  <div style="padding:20px 24px 4px;"><h3 style="margin:0;">Needs attention · {{ queue|length }}</h3></div>
   {% for e in queue %}
   <div class="queue-item">
     <div class="queue-main">
@@ -41,57 +42,66 @@
 </div>
 {% endif %}
 
-<div class="grid kpis" style="margin-bottom:14px;">
-  <div class="card kpi">
-    <div class="kpi-value">{{ stats.total }}</div>
+<div class="grid kpis" style="margin-bottom:16px;">
+  <div class="card kpi lift reveal" style="--d:0s;">
+    <div class="kpi-value" data-count="{{ stats.total }}">0</div>
     <div class="kpi-label">Events tracked</div>
     <div class="kpi-sub">{% if stats.demo %}{{ stats.demo }} demo · {% endif %}{{ sources|length }} monitor sources</div>
   </div>
-  <div class="card kpi">
-    <div class="kpi-value">{{ stats.by_status.get('simulated', 0) }}</div>
+  <div class="card kpi lift reveal" style="--d:.07s;">
+    <div class="kpi-value" data-count="{{ stats.by_status.get('simulated', 0) }}">0</div>
     <div class="kpi-label">Fully simulated</div>
     <div class="kpi-sub">{{ stats.by_status.get('analyzed', 0) }} analyzed · {{ stats.by_status.get('raw', 0) }} awaiting analysis</div>
   </div>
-  <div class="card kpi">
-    <div class="kpi-value">{{ stats.high_sev }}</div>
+  <div class="card kpi lift reveal" style="--d:.14s;">
+    <div class="kpi-value" data-count="{{ stats.high_sev }}">0</div>
     <div class="kpi-label">High / critical severity</div>
     <div class="kpi-sub">Severity 4–5 of scored events</div>
   </div>
-  <div class="card kpi">
-    <div class="kpi-value">{{ stats.monitors }}</div>
+  <div class="card kpi lift reveal" style="--d:.21s;">
+    <div class="kpi-value" data-count="{{ stats.monitors }}">0</div>
     <div class="kpi-label">Live monitors</div>
     <div class="kpi-sub">{% if key_ok %}Parallel Monitor API{% else %}Start them from Monitors{% endif %}</div>
   </div>
 </div>
 
-<div class="grid two" style="margin-bottom:14px;">
-  <div class="card">
+<div class="grid two" style="margin-bottom:16px;">
+  <div class="card reveal" style="--d:.05s;">
     <h3>Pipeline</h3>
-    {% set stages = [('raw','Detected'), ('analyzed','Analyzed'), ('simulated','Simulated')] %}
     {% set maxc = stats.total if stats.total > 0 else 1 %}
-    {% for key, label in stages %}
-    <div class="funnel-step">
-      <div class="funnel-top"><span class="name">{{ label }}</span><span class="count">{{ stats.by_status.get(key, 0) }}</span></div>
-      <div class="funnel-bar"><div class="funnel-fill" style="width:{{ (stats.by_status.get(key,0) / maxc * 100)|round(1) }}%"></div></div>
+    {% set stages = [('raw','Detected','Extract + detect','raw'),
+                     ('analyzed','Analyzed','Task API · JSON schema','analyzed'),
+                     ('simulated','Simulated','3 behavior clones','simulated')] %}
+    <div class="stepper">
+      {% for key, label, sub, cls in stages %}
+      {% set n = stats.by_status.get(key, 0) %}
+      {% set prev = stages[loop.index0 - 1][0] if loop.index0 > 0 else none %}
+      <div class="step {% if n > 0 %}done{% elif (prev and stats.by_status.get(prev, 0) > 0) or key == 'raw' %}flow{% endif %}">
+        <span class="node {% if n == 0 and ((prev and stats.by_status.get(prev, 0) > 0) or key == 'raw') %}flow{% endif %}"></span>
+        <div class="s-name">{{ label }}</div>
+        <div class="s-count" data-count="{{ n }}">0</div>
+        <div class="s-sub">{{ sub }}</div>
+        <div class="step-bar"><i data-w="{{ (n / maxc * 100)|round(1) }}"></i></div>
+      </div>
+      {% endfor %}
     </div>
-    {% endfor %}
-    <p style="margin:10px 0 0;font-size:12px;color:var(--text-3);">raw → analyzed (Task API) → simulated (three behavior clones)</p>
   </div>
-  <div class="card">
+  <div class="card reveal" style="--d:.1s;">
     <h3>Severity distribution</h3>
     {% set sevmax = (stats.severity.values()|max) if stats.total else 1 %}
     {% for s in [5,4,3,2,1] %}
     {% set n = stats.severity.get(s, 0) %}
-    <div class="funnel-step">
-      <div class="funnel-top"><span class="name">Sev {{ s }}</span><span class="count">{{ n }}</span></div>
-      <div class="funnel-bar"><div class="funnel-fill" style="width:{{ (n / sevmax * 100)|round(1) }}%;{% if s==5 %}background:#b42318{% elif s==4 %}background:#c2410c{% elif s==3 %}background:#b98a12{% elif s==2 %}background:#0369a1{% else %}background:#9aa0aa{% endif %}"></div></div>
+    <div class="sev-row">
+      <span class="s-name">Sev {{ s }}</span>
+      <div class="sev-track"><i data-w="{{ (n / sevmax * 100)|round(1) }}" style="{% if s==5 %}background:#b42318{% elif s==4 %}background:#c2410c{% elif s==3 %}background:#b98a12{% elif s==2 %}background:#2563eb{% else %}background:#9aa1ab{% endif %}"></i></div>
+      <span class="s-count">{{ n }}</span>
     </div>
     {% endfor %}
   </div>
 </div>
 
-<div class="card flush">
-  <h3>Recent events</h3>
+<div class="card flush reveal" style="--d:.05s;">
+  <div style="padding:20px 24px 4px;"><h3 style="margin:0;">Recent events</h3></div>
   {% if recent %}
   <table class="tbl">
     <thead><tr><th>Event</th><th>Source</th><th>Detected</th><th>Severity</th><th>Status</th></tr></thead>

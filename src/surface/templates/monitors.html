@@ -1,8 +1,9 @@
 {% extends "base.html" %}
 {% block title %}parallel · monitors{% endblock %}
 {% block content %}
-<div class="page-head">
+<div class="page-head reveal">
   <div>
+    <div class="eyebrow">Monitor</div>
     <h1>Monitors</h1>
     <div class="sub">Parallel Monitor sources watched for FDA changes. Detections arrive via webhook and enter the pipeline as raw events.</div>
   </div>
@@ -27,7 +28,7 @@
 
 <div class="monitor-grid">
   {% for src in sources %}
-  <div class="card monitor-card">
+  <div class="card monitor-card lift reveal" style="--d:{{ loop.index0 * 0.06 }}s;">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
       <div class="src">{{ src.name if src.name is defined else src }}</div>
       {% if key_ok and live %}<span class="pill ok"><span class="dot"></span>Live</span>
@@ -35,7 +36,7 @@
     </div>
     {% if src.name is defined %}
     <div class="desc">{{ src.objective }}</div>
-    <div class="meta" style="font-size:12.5px;color:var(--text-3);font-family:var(--mono);">{{ src.url }}</div>
+    <div class="meta">{{ src.url }}</div>
     {% endif %}
   </div>
   {% endfor %}

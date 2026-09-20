@@ -20,35 +20,89 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 </head>
 <body>
-<div class="shell">
-<aside class="sidebar">
-  <a class="brand" href="/"><span class="brand-mark">P</span><span class="brand-name">parallel</span></a>
-  <nav class="snav">
-    <a href="/" class="{{ 'active' if active == 'home' }}"><span class="ico">◈</span>Overview</a>
-    <a href="/ui/events" class="{{ 'active' if active == 'events' }}"><span class="ico">◉</span>Events</a>
-    <a href="/ui/clones" class="{{ 'active' if active == 'clones' }}"><span class="ico">⧉</span>Clones &amp; patterns</a>
-    <a href="/ui/monitors" class="{{ 'active' if active == 'monitors' }}"><span class="ico">◎</span>Monitors</a>
-  </nav>
-  <div class="sfoot">
-    {% if key_ok %}
-    <span class="pill ok"><span class="dot"></span>Live API key</span>
-    {% else %}
-    <span class="pill warn"><span class="dot"></span>No API key</span>
-    {% endif %}
-    <a class="api-link" href="/docs">API docs →</a>
+<header class="topnav">
+  <div class="nav-inner">
+    <a class="brand" href="/"><span class="brand-mark">P</span><span>parallel</span></a>
+    <nav class="nav-links">
+      <a href="/" class="{{ 'active' if active == 'home' }}">Overview</a>
+      <a href="/ui/events" class="{{ 'active' if active == 'events' }}">Events</a>
+      <a href="/ui/clones" class="{{ 'active' if active == 'clones' }}">Clones &amp; patterns</a>
+      <a href="/ui/monitors" class="{{ 'active' if active == 'monitors' }}">Monitors</a>
+    </nav>
+    <div class="nav-right">
+      {% if key_ok %}
+      <span class="pill ok"><span class="dot"></span>Live API key</span>
+      {% else %}
+      <span class="pill warn"><span class="dot"></span>No API key</span>
+      {% endif %}
+      <a class="api-link" href="/docs">API docs →</a>
+    </div>
   </div>
-</aside>
-<div class="main">
+</header>
+
 {% if demo_mode %}
 <div class="demo-banner">
-  <span class="demo-tag">DEMO DATA</span>
-  <span>Illustrative sample from real FDA publications. Analyses and predictions are synthetic. Connect a Parallel API key for live monitoring.</span>
+  <div class="inner">
+    <span class="demo-tag">DEMO DATA</span>
+    <span>Illustrative sample from real FDA publications. Analyses and predictions are synthetic. Connect a Parallel API key for live monitoring.</span>
+  </div>
 </div>
 {% endif %}
+
 <main class="page">
 {% block content %}{% endblock %}
 </main>
-</div>
-</div>
+
+<footer class="footer">
+  <div class="footer-inner">
+    <span class="fbrand"><span class="brand-mark">P</span>parallel</span>
+    <span>FDA change intelligence — sense, understand, clone, simulate.</span>
+  </div>
+</footer>
+
+<script>
+/* subtle reveal-on-scroll, count-up KPIs, and animated bars */
+(function () {
+  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  var io = new IntersectionObserver(function (entries) {
+    entries.forEach(function (e) {
+      if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }
+    });
+  }, { threshold: 0.08, rootMargin: '0px 0px -30px 0px' });
+  document.querySelectorAll('.reveal').forEach(function (el) { io.observe(el); });
+
+  /* count-up numbers */
+  document.querySelectorAll('[data-count]').forEach(function (el) {
+    var target = parseFloat(el.getAttribute('data-count')) || 0;
+    if (reduce) { el.textContent = target; return; }
+    var t0 = null, dur = 900;
+    function frame(t) {
+      if (!t0) t0 = t;
+      var p = Math.min((t - t0) / dur, 1);
+      var eased = 1 - Math.pow(1 - p, 3);
+      el.textContent = Math.round(target * eased);
+      if (p < 1) requestAnimationFrame(frame);
+    }
+    var cio = new IntersectionObserver(function (ents) {
+      ents.forEach(function (en) {
+        if (en.isIntersecting) { requestAnimationFrame(frame); cio.disconnect(); }
+      });
+    }, { threshold: 0.4 });
+    cio.observe(el);
+  });
+
+  /* animate width bars once visible */
+  document.querySelectorAll('[data-w]').forEach(function (el) {
+    var w = el.getAttribute('data-w');
+    var bio = new IntersectionObserver(function (ents) {
+      ents.forEach(function (en) {
+        if (en.isIntersecting) { el.style.width = w + '%'; bio.disconnect(); }
+      });
+    }, { threshold: 0.3 });
+    bio.observe(el);
+  });
+})();
+</script>
 </body>
 </html>

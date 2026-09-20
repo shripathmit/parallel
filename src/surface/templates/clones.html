@@ -1,16 +1,17 @@
 {% extends "base.html" %}
 {% block title %}parallel · clones & patterns{% endblock %}
 {% block content %}
-<div class="page-head">
+<div class="page-head reveal">
   <div>
+    <div class="eyebrow">Clone</div>
     <h1>Clones &amp; patterns</h1>
     <div class="sub">Distilled patterns of FDA stakeholder behavior — mined from warning letters, decision summaries, and industry responses, then run against every change.</div>
   </div>
 </div>
 
-<div class="grid three" style="margin-bottom:14px;">
+<div class="grid three" style="margin-bottom:16px;">
   {% for p in profiles %}
-  <div class="card clone-card">
+  <div class="card clone-card lift reveal" style="--d:{{ loop.index0 * 0.07 }}s;">
     <div class="clone-head">
       <span class="clone-avatar {{ p.name }}">{{ p.name[0]|upper }}</span>
       <div class="who"><div class="name">{{ p.name }} clone</div><div class="role">{{ p.role }}</div></div>
@@ -27,20 +28,20 @@
   {% endfor %}
 </div>
 
-<div class="card" style="margin-bottom:14px;">
+<div class="card reveal" style="margin-bottom:16px;--d:.05s;">
   <h3>How clones are built</h3>
-  <p style="color:var(--text-2);font-size:13px;max-width:860px;margin:0;">
-    <strong>1. Mine</strong> — FindAll scans FDA records and the Task API distills recurring behavior patterns per stakeholder.
-    <strong>2. Match</strong> — a deterministic matcher scores every pattern by trigger coverage × confidence and hands the top matches to that stakeholder's clone.
-    <strong>3. Reason</strong> — the clone predicts from the analysis <em>plus</em> its matched patterns, and cites which fired.
+  <p style="color:var(--text-2);font-size:13.5px;max-width:880px;margin:0;line-height:1.7;">
+    <strong style="color:var(--text);">1. Mine</strong> — FindAll scans FDA records and the Task API distills recurring behavior patterns per stakeholder.
+    <strong style="color:var(--text);">2. Match</strong> — a deterministic matcher scores every pattern by trigger coverage × confidence and hands the top matches to that stakeholder's clone.
+    <strong style="color:var(--text);">3. Reason</strong> — the clone predicts from the analysis <em>plus</em> its matched patterns, and cites which fired.
   </p>
 </div>
 
-<div class="page-head" style="margin-bottom:10px;">
-  <div><h1 style="font-size:16px;">Pattern library</h1>
-  <div class="sub">Click a column header to sort.</div></div>
+<div class="page-head reveal" style="margin-bottom:12px;--d:.08s;">
+  <div><h1 style="font-size:20px;letter-spacing:-0.02em;">Pattern library</h1>
+  <div class="sub" style="font-size:13.5px;">Click a column header to sort.</div></div>
 </div>
-<div class="card flush">
+<div class="card flush reveal" style="--d:.1s;">
   <table class="tbl" id="pattern-table">
     <thead><tr>
       <th class="sortable" data-k="0">Pattern ↕</th>
