@@ -40,7 +40,17 @@ class FakeCursor:
         if q.startswith("create table"):
             return  # ensure_schema: idempotent no-op
         if q.startswith("insert into parallel_docs"):
-            docs[p[0]] = dict(p[1])  # upsert, like ON CONFLICT DO UPDATE
+            val = p[1]
+            # Real psycopg3 cannot adapt a bare dict ("cannot adapt type
+            # 'dict'"); the app must wrap it in Jsonb. Mirror that here so
+            # the tests catch a missing wrapper.
+            if isinstance(val, dict):
+                raise AssertionError(
+                    "fake driver: bare dict passed to doc_put; "
+                    "real psycopg3 requires psycopg.types.json.Jsonb"
+                )
+            val = val.obj if hasattr(val, "obj") else val  # unwrap Jsonb
+            docs[p[0]] = dict(val)  # upsert, like ON CONFLICT DO UPDATE
             self.rowcount = 1
         elif q == "select doc from parallel_docs where key = %s":
             if p[0] in docs:
@@ -82,7 +92,23 @@ def _install_fake():
     fake.__path__ = []
     fake.connect = lambda *a, **k: FakeConn(state)
     fake.rows = types.SimpleNamespace(dict_row="dict_row")
-    patcher = mock.patch.dict(sys.modules, {"psycopg": fake})
+
+    class Jsonb:
+        """Stand-in for psycopg.types.json.Jsonb: wraps the dict in .obj."""
+
+        def __init__(self, obj):
+            self.obj = obj
+
+    fake_types = types.ModuleType("psycopg.types")
+    fake_types.__path__ = []
+    fake_json = types.ModuleType("psycopg.types.json")
+    fake_json.Jsonb = Jsonb
+    fake.types = fake_types
+    fake_types.json = fake_json
+    patcher = mock.patch.dict(
+        sys.modules,
+        {"psycopg": fake, "psycopg.types": fake_types, "psycopg.types.json": fake_json},
+    )
     return state, patcher
 
 

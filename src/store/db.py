@@ -68,12 +68,15 @@ def ensure_schema():
 
 
 # ------------------------------------------------------------------ documents
-# psycopg3 adapts a Python dict to jsonb automatically, and dict_row returns
-# the jsonb column as a dict -- no manual serialization anywhere.
+# Writes wrap the dict in psycopg.types.json.Jsonb: psycopg3 cannot adapt a
+# bare dict ("cannot adapt type 'dict'"). dict_row returns the jsonb column
+# as a dict on reads, so no manual serialization anywhere.
 
 
 def doc_put(key: str, doc: dict):
     """Upsert one JSON document under key."""
+    from psycopg.types.json import Jsonb
+
     ensure_schema()
     with connection() as conn, conn.cursor() as cur:
         cur.execute(
@@ -83,7 +86,7 @@ def doc_put(key: str, doc: dict):
             on conflict (key) do update
             set doc = excluded.doc, updated_at = now()
             """,
-            (key, doc),
+            (key, Jsonb(doc)),
         )
 
 

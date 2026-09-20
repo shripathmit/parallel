@@ -77,7 +77,10 @@ async def lifespan(app: FastAPI):
         empty = False
     if mode != "false" and empty:
         if mode == "true" or not _key_ok():
-            seed_demo(settings.data_dir)
+            try:
+                seed_demo(settings.data_dir)
+            except Exception as exc:
+                print(f"[parallel] ERROR: demo seed failed: {exc!r}", flush=True)
     yield
 
 
