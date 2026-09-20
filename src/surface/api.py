@@ -38,10 +38,15 @@ settings = load_settings()
 store = EventStore(settings.data_dir)
 
 # Knowledge graph: Postgres when DATABASE_URL is set, else knowledge_graph.json.
+# Defensive: if Postgres is configured but unreachable/unmigrated, start with
+# an empty graph instead of crash-looping; it heals on the next deploy.
 kg = KnowledgeGraph()
 KG_PATH = Path(settings.data_dir) / "knowledge_graph.json"
 if _db.enabled():
-    kg = KnowledgeGraph.load_db()
+    try:
+        kg = KnowledgeGraph.load_db()
+    except Exception as exc:
+        print(f"[parallel] WARNING: KG unavailable, starting empty: {exc}", flush=True)
 elif KG_PATH.exists():
     kg = KnowledgeGraph.load(KG_PATH)
 
@@ -63,7 +68,13 @@ def _key_ok() -> bool:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     mode = os.environ.get("DEMO_SEED", "auto").lower()
-    if mode != "false" and not store.list():
+    try:
+        empty = not store.list()
+    except Exception as exc:
+        # Postgres configured but unreachable/unmigrated: stay up, skip seed.
+        print(f"[parallel] WARNING: event store unreachable, skipping seed: {exc}", flush=True)
+        empty = False
+    if mode != "false" and empty:
         if mode == "true" or not _key_ok():
             seed_demo(settings.data_dir)
     yield
@@ -233,7 +244,7 @@ def _stats() -> dict:
 
 @app.get("/health")
 def health():
-    return {"status": "ok"}
+    return {"status": "ok", "db": "postgres" if _db.enabled() else "files"}
 
 
 @app.post("/webhooks/parallel/monitor")
