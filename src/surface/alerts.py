@@ -2,7 +2,23 @@
 from datetime import datetime, timezone
 from pathlib import Path
 
+from src.store import db as _db
+
 SEVERITY_THRESHOLD = 4
+
+
+def _log_alert_db(severity: int, message: str):
+    """Best-effort persistent alert record. Never raises: alerting must not
+    break the pipeline it reports on."""
+    try:
+        if _db.enabled():
+            with _db.connection() as conn, conn.cursor() as cur:
+                cur.execute(
+                    "insert into parallel_alerts (severity, message) values (%s, %s)",
+                    (severity, message),
+                )
+    except Exception:
+        pass
 
 
 def maybe_alert(analysis: dict, settings) -> dict:
@@ -17,6 +33,7 @@ def maybe_alert(analysis: dict, settings) -> dict:
     summary = analysis.get("summary", "Untitled change")
     message = f"[parallel] HIGH-SEVERITY FDA CHANGE (severity {severity}/5): {summary}"
     print(message, flush=True)
+    _log_alert_db(severity, message)
 
     log_path = Path(settings.data_dir) / "alerts.log"
     log_path.parent.mkdir(parents=True, exist_ok=True)

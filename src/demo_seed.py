@@ -11,8 +11,6 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-DEMO_DIRNAME = "demo"  # data/demo/<event_id>.analysis.json etc.
-
 
 def _dt(y, m, d, hh=9, mm=0):
     return datetime(y, m, d, hh, mm, tzinfo=timezone.utc).isoformat()
@@ -546,14 +544,12 @@ def seed(data_dir: str) -> dict:
     """Write demo events + demo payloads. Idempotent: skips if events exist."""
     from src.clones.patterns import PatternStore, match_patterns, seed_demo_patterns
     from src.sense.events import EventStore, ChangeEvent
+    from src.store import artifacts
 
     data = Path(data_dir)
     store = EventStore(str(data))
     if store.list():
         return {"seeded": False, "reason": "store not empty"}
-
-    demo_dir = data / DEMO_DIRNAME
-    demo_dir.mkdir(parents=True, exist_ok=True)
 
     # Seed the pattern library first; predictions below attach patterns_used
     # using the real match_patterns algorithm (not hand-picked).
@@ -562,6 +558,7 @@ def seed(data_dir: str) -> dict:
         pattern_store.add(pattern)
     all_patterns = pattern_store.list()
 
+    demo_payloads = {}
     for spec in EVENTS:
         event = ChangeEvent(
             id=spec["id"],
@@ -576,9 +573,7 @@ def seed(data_dir: str) -> dict:
         )
         store.append(event)
         eid = spec["id"]
-        (demo_dir / f"{eid}.analysis.json").write_text(
-            json.dumps({"demo": True, **ANALYSES[eid]}, indent=2), encoding="utf-8"
-        )
+        demo_payloads[(eid, "analysis")] = {"demo": True, **ANALYSES[eid]}
         analysis = ANALYSES[eid]
         sim = {
             "demo": True,
@@ -604,27 +599,18 @@ def seed(data_dir: str) -> dict:
                 for name in ("enforcement", "reviewer", "sponsor")
             },
         }
-        (demo_dir / f"{eid}.simulation.json").write_text(
-            json.dumps(sim, indent=2), encoding="utf-8"
-        )
+        demo_payloads[(eid, "simulation")] = sim
 
-    # Materialize payloads for events already past "raw"
-    analyses_dir = data / "analyses"
-    analyses_dir.mkdir(exist_ok=True)
-    sims_dir = data / "simulations"
-    sims_dir.mkdir(exist_ok=True)
+    # Persist demo payloads (Postgres demo_payloads table, or data/demo/*.json)
+    # and materialize the ones for events already past "raw".
+    for (eid, kind), payload in demo_payloads.items():
+        artifacts.save_demo_payload(str(data), eid, kind, payload)
     for spec in EVENTS:
         eid = spec["id"]
         if spec["status"] in ("analyzed", "simulated", "alerted"):
-            (analyses_dir / f"{eid}.json").write_text(
-                (demo_dir / f"{eid}.analysis.json").read_text(encoding="utf-8"),
-                encoding="utf-8",
-            )
+            artifacts.save_analysis(str(data), eid, demo_payloads[(eid, "analysis")])
         if spec["status"] in ("simulated", "alerted"):
-            (sims_dir / f"{eid}.json").write_text(
-                (demo_dir / f"{eid}.simulation.json").read_text(encoding="utf-8"),
-                encoding="utf-8",
-            )
+            artifacts.save_simulation(str(data), eid, demo_payloads[(eid, "simulation")])
 
     return {"seeded": True, "events": len(EVENTS)}
 

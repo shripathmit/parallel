@@ -8,7 +8,6 @@ illustrative demo data on startup (set DEMO_SEED=false to disable) and the
 "Run analysis" / "Run simulation" buttons materialize canned demo payloads
 so the full pipeline flow is explorable. Everything demo is labeled in the UI.
 """
-import json
 import os
 import urllib.parse
 from contextlib import asynccontextmanager
@@ -30,21 +29,31 @@ from src.sense.events import ChangeEvent, EventStore
 from src.sense.monitors import FDA_SOURCES, setup_monitors, teardown_monitors
 from src.sense.webhook import normalize_monitor_payload, verify_signature
 from src.simulate.runner import run_simulation
+from src.store import artifacts, db as _db
 from src.surface.alerts import maybe_alert
 from src.understand.analyze import analyze_change
 from src.understand.knowledge_graph import KnowledgeGraph
 
 settings = load_settings()
 store = EventStore(settings.data_dir)
+
+# Knowledge graph: Postgres when DATABASE_URL is set, else knowledge_graph.json.
 kg = KnowledgeGraph()
 KG_PATH = Path(settings.data_dir) / "knowledge_graph.json"
-if KG_PATH.exists():
+if _db.enabled():
+    kg = KnowledgeGraph.load_db()
+elif KG_PATH.exists():
     kg = KnowledgeGraph.load(KG_PATH)
+
+
+def persist_kg():
+    if _db.enabled():
+        kg.save_db()
+    else:
+        kg.save(KG_PATH)
 
 BASE_DIR = Path(__file__).parent
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
-
-DEMO_DIR = Path(settings.data_dir) / "demo"
 
 
 def _key_ok() -> bool:
@@ -163,52 +172,27 @@ def _ctx(request: Request, active: str = "home", **kw) -> dict:
     }
 
 
-def _analysis_path(event_id: str) -> Path:
-    path = Path(settings.data_dir) / "analyses"
-    path.mkdir(parents=True, exist_ok=True)
-    return path / f"{event_id}.json"
+# Per-event artifacts live in Postgres when DATABASE_URL is set, otherwise in
+# per-event JSON files under DATA_DIR. Same helpers either way.
+def _save_analysis(event_id: str, analysis: dict):
+    artifacts.save_analysis(settings.data_dir, event_id, analysis)
 
 
-def _simulation_path(event_id: str) -> Path:
-    path = Path(settings.data_dir) / "simulations"
-    path.mkdir(parents=True, exist_ok=True)
-    return path / f"{event_id}.json"
+def _load_analysis(event_id: str):
+    return artifacts.load_analysis(settings.data_dir, event_id)
+
+
+def _save_simulation(event_id: str, simulation: dict):
+    artifacts.save_simulation(settings.data_dir, event_id, simulation)
+
+
+def _load_simulation(event_id: str):
+    return artifacts.load_simulation(settings.data_dir, event_id)
 
 
 def _demo_payload(event_id: str, kind: str):
     """Canned demo payload (analysis|simulation), or None."""
-    path = DEMO_DIR / f"{event_id}.{kind}.json"
-    if path.exists():
-        return json.loads(path.read_text(encoding="utf-8"))
-    return None
-
-
-def _save_json(path: Path, data: dict):
-    with path.open("w", encoding="utf-8") as fh:
-        json.dump(data, fh, indent=2)
-
-
-def _load_json(path: Path):
-    if not path.exists():
-        return None
-    with path.open("r", encoding="utf-8") as fh:
-        return json.load(fh)
-
-
-def _save_analysis(event_id: str, analysis: dict):
-    _save_json(_analysis_path(event_id), analysis)
-
-
-def _load_analysis(event_id: str):
-    return _load_json(_analysis_path(event_id))
-
-
-def _save_simulation(event_id: str, simulation: dict):
-    _save_json(_simulation_path(event_id), simulation)
-
-
-def _load_simulation(event_id: str):
-    return _load_json(_simulation_path(event_id))
+    return artifacts.load_demo_payload(settings.data_dir, event_id, kind)
 
 
 def _severity_of(event_id: str):
@@ -289,7 +273,7 @@ def analyze_event(event_id: str):
     analysis = analyze_change(ParallelClient(), event)
     _save_analysis(event_id, analysis)
     kg.add_analysis(event, analysis)
-    kg.save(KG_PATH)
+    persist_kg()
     store.mark_processed(event_id, "analyzed")
     alert = maybe_alert(analysis, settings)
     return {"event_id": event_id, "analysis": analysis, "alert": alert}
@@ -436,7 +420,7 @@ def _run_analysis_bg(event_id: str):
         analysis = analyze_change(ParallelClient(), event)
         _save_analysis(event_id, analysis)
         kg.add_analysis(event, analysis)
-        kg.save(KG_PATH)
+        persist_kg()
         store.mark_processed(event_id, "analyzed")
         maybe_alert(analysis, settings)
     except Exception as exc:  # persist the failure where the UI can show it
