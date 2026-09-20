@@ -75,7 +75,10 @@ async def lifespan(app: FastAPI):
         # Postgres configured but unreachable/unmigrated: stay up, skip seed.
         print(f"[parallel] WARNING: event store unreachable, skipping seed: {exc}", flush=True)
         empty = False
-    if mode != "false" and empty:
+    # DEMO_SEED=true is explicit: ensure demo data exists even when the store
+    # already holds real events. "auto" (default) only seeds an empty store
+    # when no real API key is configured.
+    if mode != "false" and (empty or mode == "true"):
         if mode == "true" or not _key_ok():
             try:
                 seed_demo(settings.data_dir)

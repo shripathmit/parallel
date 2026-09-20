@@ -541,15 +541,16 @@ SIMULATIONS = {
 
 
 def seed(data_dir: str) -> dict:
-    """Write demo events + demo payloads. Idempotent: skips if events exist."""
+    """Write demo events + demo payloads. Idempotent: only adds what's missing."""
     from src.clones.patterns import PatternStore, match_patterns, seed_demo_patterns
     from src.sense.events import EventStore, ChangeEvent
     from src.store import artifacts
 
     data = Path(data_dir)
     store = EventStore(str(data))
-    if store.list():
-        return {"seeded": False, "reason": "store not empty"}
+    missing = [spec for spec in EVENTS if not store.get(spec["id"])]
+    if not missing:
+        return {"seeded": False, "reason": "demo events already present"}
 
     # Seed the pattern library first; predictions below attach patterns_used
     # using the real match_patterns algorithm (not hand-picked).
@@ -559,7 +560,7 @@ def seed(data_dir: str) -> dict:
     all_patterns = pattern_store.list()
 
     demo_payloads = {}
-    for spec in EVENTS:
+    for spec in missing:
         event = ChangeEvent(
             id=spec["id"],
             source=spec["source"],
@@ -605,14 +606,14 @@ def seed(data_dir: str) -> dict:
     # and materialize the ones for events already past "raw".
     for (eid, kind), payload in demo_payloads.items():
         artifacts.save_demo_payload(str(data), eid, kind, payload)
-    for spec in EVENTS:
+    for spec in missing:
         eid = spec["id"]
         if spec["status"] in ("analyzed", "simulated", "alerted"):
             artifacts.save_analysis(str(data), eid, demo_payloads[(eid, "analysis")])
         if spec["status"] in ("simulated", "alerted"):
             artifacts.save_simulation(str(data), eid, demo_payloads[(eid, "simulation")])
 
-    return {"seeded": True, "events": len(EVENTS)}
+    return {"seeded": True, "events": len(missing)}
 
 
 if __name__ == "__main__":
