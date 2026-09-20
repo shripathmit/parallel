@@ -10,6 +10,7 @@ so the full pipeline flow is explorable. Everything demo is labeled in the UI.
 """
 import json
 import os
+import urllib.parse
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -17,6 +18,7 @@ from fastapi import BackgroundTasks, FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from starlette.middleware.sessions import SessionMiddleware
 
 from config import load_settings
 from src.clones.clone import Clone
@@ -62,6 +64,75 @@ app = FastAPI(title="parallel", version="0.3.0", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
 
 
+# ---------------------------------------------------------------- Access gate
+# Everything under / and /ui requires the access code (default "parallel",
+# override with ACCESS_CODE). Health, static assets, webhooks, docs, and the
+# login routes themselves stay open.
+
+
+class LoginGate:
+    """Redirect unauthenticated browsers to /login. Runs inside
+    SessionMiddleware so scope["session"] is populated."""
+
+    OPEN = ("/login", "/logout", "/health", "/static", "/webhooks", "/docs", "/openapi.json")
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "http":
+            path = scope.get("path", "/")
+            if not path.startswith(self.OPEN):
+                if not scope.get("session", {}).get("authed"):
+                    qs = scope.get("query_string", b"").decode()
+                    nxt = urllib.parse.quote(path + ("?" + qs if qs else ""), safe="/?=&%")
+                    resp = RedirectResponse(f"/login?next={nxt}", status_code=303)
+                    await resp(scope, receive, send)
+                    return
+        await self.app(scope, receive, send)
+
+
+def _safe_next(value: str) -> str:
+    if value and value.startswith("/") and not value.startswith("//"):
+        return value
+    return "/"
+
+
+# NOTE: add_middleware inserts at the front of the stack, so the LAST added
+# middleware is OUTERMOST. SessionMiddleware must wrap outside LoginGate so
+# scope["session"] is populated before the gate checks it.
+app.add_middleware(LoginGate)
+app.add_middleware(SessionMiddleware, secret_key=settings.session_secret, same_site="lax")
+
+
+@app.get("/login", response_class=HTMLResponse)
+def login_page(request: Request, next: str = "/"):
+    if request.session.get("authed"):
+        return RedirectResponse(_safe_next(next), status_code=303)
+    return templates.TemplateResponse(
+        request, "login.html", {"request": request, "error": "", "next": next}
+    )
+
+
+@app.post("/login", response_class=HTMLResponse)
+def login_submit(request: Request, code: str = Form(""), next: str = Form("/")):
+    if code.strip() == settings.access_code:
+        request.session["authed"] = True
+        return RedirectResponse(_safe_next(next), status_code=303)
+    return templates.TemplateResponse(
+        request,
+        "login.html",
+        {"request": request, "error": "Incorrect access code.", "next": next},
+        status_code=401,
+    )
+
+
+@app.get("/logout")
+def logout(request: Request):
+    request.session.clear()
+    return RedirectResponse("/login", status_code=303)
+
+
 def _pattern_store() -> PatternStore:
     return PatternStore(settings.data_dir)
 
@@ -87,6 +158,7 @@ def _ctx(request: Request, active: str = "home", **kw) -> dict:
         "active": active,
         "key_ok": _key_ok(),
         "demo_mode": _has_demo(),
+        "authed": bool(request.session.get("authed")),
         **kw,
     }
 

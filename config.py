@@ -1,6 +1,7 @@
 """Project configuration loaded from environment (.env supported)."""
 import os
-from dataclasses import dataclass
+import secrets
+from dataclasses import dataclass, field
 
 try:
     from dotenv import load_dotenv
@@ -17,6 +18,8 @@ class Settings:
     alert_email: str
     data_dir: str
     request_timeout: int = 60
+    session_secret: str = field(default_factory=lambda: secrets.token_hex(32))
+    access_code: str = "parallel"
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -26,6 +29,8 @@ class Settings:
             alert_email=os.environ.get("ALERT_EMAIL", ""),
             data_dir=os.environ.get("DATA_DIR", "data"),
             request_timeout=int(os.environ.get("PARALLEL_TIMEOUT", "60")),
+            session_secret=os.environ.get("SESSION_SECRET", secrets.token_hex(32)),
+            access_code=os.environ.get("ACCESS_CODE", "parallel"),
         )
 
 

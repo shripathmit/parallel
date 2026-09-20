@@ -100,6 +100,40 @@
   </div>
 </div>
 
+<div class="card reveal" style="margin-bottom:16px;--d:.05s;">
+  <div class="how-head">
+    <div class="eyebrow" style="margin-bottom:8px;">How it works</div>
+    <h3>From FDA publication to stakeholder prediction</h3>
+    <p>Four automated steps turn a raw regulatory change into behavior-pattern clone predictions.</p>
+  </div>
+  <div class="how-grid">
+    <div class="how-step">
+      <div class="how-visual"><div class="scan"><span class="beam"></span><span class="blip b1"></span><span class="blip b2"></span><span class="blip b3"></span></div></div>
+      <div class="how-n">01</div>
+      <div class="how-t">Sense</div>
+      <p>Monitors watch FDA sources around the clock. Detections arrive via webhook and enter the pipeline as raw events.</p>
+    </div>
+    <div class="how-step">
+      <div class="how-visual"><div class="parse"><span class="pl"></span><span class="pl"></span><span class="pl"></span><span class="pl"></span></div></div>
+      <div class="how-n">02</div>
+      <div class="how-t">Understand</div>
+      <p>The Task API extracts what changed, scores severity, and grounds every claim in the source document.</p>
+    </div>
+    <div class="how-step">
+      <div class="how-visual"><div class="match"><span class="mdot"></span><span class="mlink"></span><span class="mdot"></span><span class="mlink"></span><span class="mdot"></span></div></div>
+      <div class="how-n">03</div>
+      <div class="how-t">Clone</div>
+      <p>Behavior patterns are matched deterministically — trigger coverage × confidence — to each stakeholder clone.</p>
+    </div>
+    <div class="how-step">
+      <div class="how-visual"><div class="sim"><span class="sbar"></span><span class="sbar"></span><span class="sbar"></span></div></div>
+      <div class="how-n">04</div>
+      <div class="how-t">Simulate</div>
+      <p>Enforcement, reviewer, and sponsor clones predict what happens next — with citations and patterns fired.</p>
+    </div>
+  </div>
+</div>
+
 <div class="card flush reveal" style="--d:.05s;">
   <div style="padding:20px 24px 4px;"><h3 style="margin:0;">Recent events</h3></div>
   {% if recent %}

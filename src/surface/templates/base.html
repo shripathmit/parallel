@@ -36,6 +36,7 @@
       <span class="pill warn"><span class="dot"></span>No API key</span>
       {% endif %}
       <a class="api-link" href="/docs">API docs →</a>
+      {% if authed %}<a class="api-link" href="/logout">Sign out</a>{% endif %}
     </div>
   </div>
 </header>

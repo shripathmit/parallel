@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>parallel · sign in</title>
+<link rel="stylesheet" href="/static/style.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+</head>
+<body>
+<div class="login-wrap">
+  <div class="login-card">
+    <a class="brand" href="/login" style="justify-content:center;"><span class="brand-mark">P</span><span>parallel</span></a>
+    <h1>Access required</h1>
+    <p class="sub">Enter your access code to continue.</p>
+    {% if error %}<div class="flash error" style="margin:18px 0 0;text-align:left;">{{ error }}</div>{% endif %}
+    <form method="post" action="/login" class="login-form">
+      <input type="hidden" name="next" value="{{ next }}">
+      <input class="input login-input" type="password" name="code" placeholder="Access code"
+             autocomplete="current-password" autofocus required>
+      <button class="btn primary login-btn" type="submit">Continue</button>
+    </form>
+    <p class="login-note">FDA change intelligence — sense, understand, clone, simulate.</p>
+  </div>
+</div>
+</body>
+</html>
