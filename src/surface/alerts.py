@@ -1,4 +1,5 @@
 """Severity-based alerting for analyzed changes."""
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -12,11 +13,11 @@ def _log_alert_db(severity: int, message: str):
     break the pipeline it reports on."""
     try:
         if _db.enabled():
-            with _db.connection() as conn, conn.cursor() as cur:
-                cur.execute(
-                    "insert into parallel_alerts (severity, message) values (%s, %s)",
-                    (severity, message),
-                )
+            now = datetime.now(timezone.utc).isoformat()
+            _db.doc_put(
+                f"alert:{now}:{uuid.uuid4().hex[:6]}",
+                {"severity": severity, "message": message, "created_at": now},
+            )
     except Exception:
         pass
 

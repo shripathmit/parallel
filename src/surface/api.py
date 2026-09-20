@@ -37,9 +37,10 @@ from src.understand.knowledge_graph import KnowledgeGraph
 settings = load_settings()
 store = EventStore(settings.data_dir)
 
-# Knowledge graph: Postgres when DATABASE_URL is set, else knowledge_graph.json.
-# Defensive: if Postgres is configured but unreachable/unmigrated, start with
-# an empty graph instead of crash-looping; it heals on the next deploy.
+# Knowledge graph: Postgres documents when DATABASE_URL is set, else
+# knowledge_graph.json. Defensive: if Postgres is configured but
+# unreachable/unmigrated, start with an empty graph instead of crash-looping;
+# it heals on the next deploy.
 kg = KnowledgeGraph()
 KG_PATH = Path(settings.data_dir) / "knowledge_graph.json"
 if _db.enabled():

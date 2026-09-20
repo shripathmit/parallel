@@ -71,36 +71,14 @@ class KnowledgeGraph:
         return kg
 
     def save_db(self):
-        """Persist the whole graph to Postgres atomically (single txn)."""
-        from psycopg.types.json import Json
-
-        with _db.connection() as conn:
-            with conn.transaction():
-                with conn.cursor() as cur:
-                    cur.execute("delete from parallel_kg_edges")
-                    cur.execute("delete from parallel_kg_nodes")
-                    for node_id, attrs in self.graph.nodes(data=True):
-                        cur.execute(
-                            "insert into parallel_kg_nodes (node_id, attrs) "
-                            "values (%s, %s)",
-                            (node_id, Json(dict(attrs))),
-                        )
-                    for src, dst, attrs in self.graph.edges(data=True):
-                        cur.execute(
-                            "insert into parallel_kg_edges (src, dst, attrs) "
-                            "values (%s, %s, %s)",
-                            (src, dst, Json(dict(attrs))),
-                        )
+        """Persist the whole graph as one JSON document (key "kg")."""
+        _db.doc_put("kg", nx.node_link_data(self.graph))
 
     @classmethod
     def load_db(cls):
-        """Rebuild the graph from Postgres. Empty graph when no rows."""
+        """Rebuild the graph from the "kg" document. Empty graph when absent."""
         kg = cls()
-        with _db.connection() as conn, conn.cursor() as cur:
-            cur.execute("select node_id, attrs from parallel_kg_nodes")
-            for row in cur.fetchall():
-                kg.graph.add_node(row["node_id"], **dict(row["attrs"] or {}))
-            cur.execute("select src, dst, attrs from parallel_kg_edges")
-            for row in cur.fetchall():
-                kg.graph.add_edge(row["src"], row["dst"], **dict(row["attrs"] or {}))
+        doc = _db.doc_get("kg")
+        if doc:
+            kg.graph = nx.node_link_graph(doc)
         return kg

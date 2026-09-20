@@ -32,47 +32,16 @@ class Pattern:
     version: int = 1
 
 
-_PATTERN_COLUMNS = (
-    "name, stakeholder, triggers, description, typical_actions, "
-    "evidence_citations, confidence, support, demo, version"
-)
+_PATTERN_PREFIX = "pattern:"
 
 
-def _row_to_pattern(row: dict) -> "Pattern":
-    return Pattern(
-        name=row["name"],
-        stakeholder=row["stakeholder"],
-        triggers=list(row["triggers"] or []),
-        description=row["description"] or "",
-        typical_actions=list(row["typical_actions"] or []),
-        evidence_citations=list(row["evidence_citations"] or []),
-        confidence=float(row["confidence"] or 0),
-        support=int(row["support"] or 0),
-        demo=bool(row["demo"]),
-        version=int(row["version"] or 1),
-    )
-
-
-def _pattern_params(pattern: "Pattern") -> tuple:
-    from psycopg.types.json import Json
-
-    return (
-        pattern.name,
-        pattern.stakeholder,
-        Json(pattern.triggers or []),
-        pattern.description or "",
-        Json(pattern.typical_actions or []),
-        Json(pattern.evidence_citations or []),
-        float(pattern.confidence or 0),
-        int(pattern.support or 0),
-        bool(pattern.demo),
-        int(pattern.version or 1),
-    )
+def _pattern_key(name: str) -> str:
+    return f"{_PATTERN_PREFIX}{name}"
 
 
 class PatternStore:
-    """Pattern store: Postgres when DATABASE_URL is set, otherwise the
-    original data/patterns.json file. Same interface either way."""
+    """Pattern store: Postgres documents when DATABASE_URL is set, otherwise
+    the original data/patterns.json file. Same interface either way."""
 
     def __init__(self, data_dir):
         self.data_dir = str(data_dir)
@@ -85,19 +54,11 @@ class PatternStore:
 
     def list(self, stakeholder: str = None) -> list:
         if self.use_db:
-            with _db.connection() as conn, conn.cursor() as cur:
-                if stakeholder:
-                    cur.execute(
-                        f"select {_PATTERN_COLUMNS} from parallel_patterns "
-                        "where stakeholder = %s order by name",
-                        (stakeholder,),
-                    )
-                else:
-                    cur.execute(
-                        f"select {_PATTERN_COLUMNS} from parallel_patterns "
-                        "order by name"
-                    )
-                return [_row_to_pattern(row) for row in cur.fetchall()]
+            patterns = [Pattern(**d) for d in _db.doc_list(_PATTERN_PREFIX)]
+            patterns.sort(key=lambda p: p.name)
+            if stakeholder:
+                patterns = [p for p in patterns if p.stakeholder == stakeholder]
+            return patterns
         patterns = [Pattern(**d) for d in json.loads(self.path.read_text(encoding="utf-8"))]
         if stakeholder:
             patterns = [p for p in patterns if p.stakeholder == stakeholder]
@@ -105,27 +66,7 @@ class PatternStore:
 
     def add(self, pattern: "Pattern"):
         if self.use_db:
-            with _db.connection() as conn, conn.cursor() as cur:
-                cur.execute(
-                    """
-                    insert into parallel_patterns
-                        (name, stakeholder, triggers, description,
-                         typical_actions, evidence_citations,
-                         confidence, support, demo, version)
-                    values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    on conflict (name) do update set
-                        stakeholder = excluded.stakeholder,
-                        triggers = excluded.triggers,
-                        description = excluded.description,
-                        typical_actions = excluded.typical_actions,
-                        evidence_citations = excluded.evidence_citations,
-                        confidence = excluded.confidence,
-                        support = excluded.support,
-                        demo = excluded.demo,
-                        version = excluded.version
-                    """,
-                    _pattern_params(pattern),
-                )
+            _db.doc_put(_pattern_key(pattern.name), asdict(pattern))
             return
         patterns = self.list()
         patterns = [p for p in patterns if p.name != pattern.name] + [pattern]
@@ -135,9 +76,13 @@ class PatternStore:
 
     def clear_demo(self) -> int:
         if self.use_db:
-            with _db.connection() as conn, conn.cursor() as cur:
-                cur.execute("delete from parallel_patterns where demo = true")
-                return cur.rowcount
+            n = 0
+            for key in _db.doc_keys(_PATTERN_PREFIX):
+                doc = _db.doc_get(key)
+                if doc and doc.get("demo"):
+                    _db.doc_delete(key)
+                    n += 1
+            return n
         patterns = [p for p in self.list() if not p.demo]
         n = len(self.list()) - len(patterns)
         self.path.write_text(

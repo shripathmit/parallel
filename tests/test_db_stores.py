@@ -1,9 +1,9 @@
-"""DB-path tests for the Postgres stores. No live database needed.
+"""DB-path tests for the schemaless Postgres document store.
 
-A fake psycopg module (in-memory dicts) stands in for the real driver so we
-can exercise every DATABASE_URL code path: branching, parameter order,
-row mapping, and upsert/conflict semantics. SQL syntax itself is validated
-separately with pglast (see scripts/check_sql.py usage in CI notes).
+No live database needed. A fake psycopg module (one in-memory dict standing
+in for the parallel_docs table) exercises every DATABASE_URL code path:
+events, patterns, artifacts, knowledge graph, and alerts. The fake raises on
+any SQL it doesn't recognize, so new queries can't slip past the tests.
 """
 import sys
 import types
@@ -17,6 +17,8 @@ from src.store import db as _db
 
 
 class FakeCursor:
+    """Emulates the parallel_docs table: {key: doc}."""
+
     def __init__(self, state):
         self.s = state
         self._rows = []
@@ -31,86 +33,28 @@ class FakeCursor:
     def execute(self, sql, params=()):
         q = " ".join(sql.split()).lower()
         p = tuple(params or ())
-        s = self.s
+        docs = self.s["docs"]
         self._rows = []
         self.rowcount = 0
 
-        if q.startswith("insert into parallel_events"):
-            eid = p[0]
-            if eid not in s["events"]:
-                s["events"][eid] = {
-                    "id": p[0], "source": p[1], "url": p[2], "title": p[3],
-                    "detected_at": p[4], "change_type": p[5], "raw_diff": p[6],
-                    "status": p[7], "demo": p[8],
-                }
+        if q.startswith("create table"):
+            return  # ensure_schema: idempotent no-op
+        if q.startswith("insert into parallel_docs"):
+            docs[p[0]] = dict(p[1])  # upsert, like ON CONFLICT DO UPDATE
+            self.rowcount = 1
+        elif q == "select doc from parallel_docs where key = %s":
+            if p[0] in docs:
+                self._rows = [{"doc": dict(docs[p[0]])}]
+        elif q == "select key from parallel_docs where key like %s":
+            prefix = p[0][:-1]  # trailing "%"
+            self._rows = [{"key": k} for k in docs if k.startswith(prefix)]
+        elif q == "select doc from parallel_docs where key like %s":
+            prefix = p[0][:-1]
+            self._rows = [{"doc": dict(docs[k])} for k in docs if k.startswith(prefix)]
+        elif q == "delete from parallel_docs where key = %s":
+            if p[0] in docs:
+                del docs[p[0]]
                 self.rowcount = 1
-        elif "from parallel_events" in q and q.startswith("select"):
-            rows = sorted(s["events"].values(), key=lambda r: r["detected_at"])
-            if "where status =" in q:
-                rows = [r for r in rows if r["status"] == p[0]]
-            elif "where id =" in q:
-                rows = [r for r in rows if r["id"] == p[0]]
-            self._rows = rows
-        elif q.startswith("update parallel_events"):
-            eid = p[1]
-            if eid in s["events"]:
-                s["events"][eid]["status"] = p[0]
-                self.rowcount = 1
-        elif q.startswith("insert into parallel_analyses") or q.startswith(
-            "insert into parallel_simulations"
-        ):
-            table = "analyses" if "parallel_analyses" in q else "simulations"
-            s[table][p[0]] = p[1]
-            self.rowcount = 1
-        elif "from parallel_analyses" in q or "from parallel_simulations" in q:
-            table = "analyses" if "parallel_analyses" in q else "simulations"
-            if p[0] in s[table]:
-                self._rows = [{"payload": s[table][p[0]]}]
-        elif q.startswith("insert into parallel_demo_payloads"):
-            s["demo_payloads"][(p[0], p[1])] = p[2]
-            self.rowcount = 1
-        elif "from parallel_demo_payloads" in q:
-            key = (p[0], p[1])
-            if key in s["demo_payloads"]:
-                self._rows = [{"payload": s["demo_payloads"][key]}]
-        elif q.startswith("insert into parallel_patterns"):
-            name = p[0]
-            s["patterns"][name] = {
-                "name": p[0], "stakeholder": p[1], "triggers": p[2],
-                "description": p[3], "typical_actions": p[4],
-                "evidence_citations": p[5], "confidence": p[6],
-                "support": p[7], "demo": p[8], "version": p[9],
-            }
-            self.rowcount = 1
-        elif "from parallel_patterns" in q and q.startswith("select"):
-            rows = sorted(s["patterns"].values(), key=lambda r: r["name"])
-            if "where stakeholder =" in q:
-                rows = [r for r in rows if r["stakeholder"] == p[0]]
-            self._rows = rows
-        elif q.startswith("delete from parallel_patterns"):
-            before = len(s["patterns"])
-            s["patterns"] = {k: v for k, v in s["patterns"].items() if not v["demo"]}
-            self.rowcount = before - len(s["patterns"])
-        elif q.startswith("delete from parallel_kg_"):
-            if "parallel_kg_edges" in q:
-                s["kg_edges"] = []
-            else:
-                s["kg_nodes"] = {}
-        elif q.startswith("insert into parallel_kg_nodes"):
-            s["kg_nodes"][p[0]] = p[1]
-        elif q.startswith("insert into parallel_kg_edges"):
-            s["kg_edges"].append((p[0], p[1], p[2]))
-        elif q.startswith("select node_id"):
-            self._rows = [
-                {"node_id": k, "attrs": v} for k, v in s["kg_nodes"].items()
-            ]
-        elif q.startswith("select src, dst"):
-            self._rows = [
-                {"src": a, "dst": b, "attrs": c} for a, b, c in s["kg_edges"]
-            ]
-        elif q.startswith("insert into parallel_alerts"):
-            s["alerts"].append({"severity": p[0], "message": p[1]})
-            self.rowcount = 1
         else:
             raise AssertionError(f"fake driver: unhandled SQL: {sql!r}")
 
@@ -128,36 +72,18 @@ class FakeConn:
     def cursor(self):
         return FakeCursor(self.s)
 
-    def transaction(self):
-        return self.cursor()  # atomicity is a no-op in the fake
-
     def close(self):
         pass
 
 
-def _blank_state():
-    return {
-        "events": {}, "analyses": {}, "simulations": {}, "demo_payloads": {},
-        "patterns": {}, "kg_nodes": {}, "kg_edges": [], "alerts": [],
-    }
-
-
 def _install_fake():
-    state = _blank_state()
+    state = {"docs": {}}
     fake = types.ModuleType("psycopg")
-    fake.__path__ = []  # mark as a package so submodule imports resolve
+    fake.__path__ = []
     fake.connect = lambda *a, **k: FakeConn(state)
     fake.rows = types.SimpleNamespace(dict_row="dict_row")
-    types_mod = types.ModuleType("psycopg.types")
-    types_mod.__path__ = []
-    json_mod = types.ModuleType("psycopg.types.json")
-    json_mod.Json = lambda v: v
-    types_mod.json = json_mod
-    fake.types = types_mod
-    return state, mock.patch.dict(
-        sys.modules,
-        {"psycopg": fake, "psycopg.types": types_mod, "psycopg.types.json": json_mod},
-    )
+    patcher = mock.patch.dict(sys.modules, {"psycopg": fake})
+    return state, patcher
 
 
 # ------------------------------------------------------------------- tests
@@ -169,8 +95,15 @@ class DbStoresTest(unittest.TestCase):
         self._patcher.start()
         self._url = mock.patch.object(_db, "DATABASE_URL", "postgresql://fake/db")
         self._url.start()
+        _db._schema_ready = False
         self.addCleanup(self._patcher.stop)
         self.addCleanup(self._url.stop)
+
+    # schema ---------------------------------------------------------
+    def test_ensure_schema_idempotent(self):
+        _db.ensure_schema()
+        _db.ensure_schema()  # second call is a no-op (per-process flag)
+        self.assertTrue(_db._schema_ready)
 
     # events ---------------------------------------------------------
     def test_events_roundtrip(self):
@@ -189,20 +122,18 @@ class DbStoresTest(unittest.TestCase):
             store.mark_processed("missing", "analyzed")
         with self.assertRaises(ValueError):
             store.mark_processed(e.id, "bogus")
-        # append is idempotent on conflict
+        # re-append upserts instead of duplicating
         store.append(e)
         self.assertEqual(len(store.list()), 1)
+        self.assertIsNone(store.get("missing"))
 
-    def test_row_to_event_datetime(self):
-        from datetime import datetime, timezone
-        from src.sense.events import _row_to_event
+    def test_events_list_order(self):
+        from src.sense.events import ChangeEvent, EventStore
 
-        row = {
-            "id": "a", "source": "s", "url": "u", "title": "t",
-            "detected_at": datetime(2026, 1, 2, 3, 4, tzinfo=timezone.utc),
-            "change_type": "new", "raw_diff": "", "status": "raw", "demo": False,
-        }
-        self.assertEqual(_row_to_event(row).detected_at, "2026-01-02T03:04:00+00:00")
+        store = EventStore("/tmp/ignored")
+        store.append(ChangeEvent(id="b", detected_at="2026-09-02T00:00:00+00:00"))
+        store.append(ChangeEvent(id="a", detected_at="2026-09-01T00:00:00+00:00"))
+        self.assertEqual([e.id for e in store.list()], ["a", "b"])
 
     # patterns -------------------------------------------------------
     def test_patterns_roundtrip(self):
@@ -258,21 +189,24 @@ class DbStoresTest(unittest.TestCase):
         self.assertIn("product:DXY", kg2.graph.nodes)
         self.assertEqual(kg2.graph.nodes["change:e1"]["severity"], 4)
         self.assertEqual(len(kg2.impacts_of("DXY")), 1)
-        # empty db -> empty graph, no crash
-        self.state["kg_nodes"] = {}
-        self.state["kg_edges"] = []
+        # missing doc -> empty graph, no crash
+        _db.doc_delete("kg")
         self.assertEqual(len(KnowledgeGraph.load_db().graph.nodes), 0)
 
     # alerts ----------------------------------------------------------
     def test_alert_logged(self):
         from src.surface import alerts
 
-        out = alerts.maybe_alert({"severity": 5, "summary": "boom"}, types.SimpleNamespace(data_dir="/tmp/x"))
+        out = alerts.maybe_alert({"severity": 5, "summary": "boom"},
+                                 types.SimpleNamespace(data_dir="/tmp/x"))
         self.assertTrue(out["alerted"])
-        self.assertEqual(self.state["alerts"][0]["severity"], 5)
-        out = alerts.maybe_alert({"severity": 2}, types.SimpleNamespace(data_dir="/tmp/x"))
+        keys = _db.doc_keys("alert:")
+        self.assertEqual(len(keys), 1)
+        self.assertEqual(_db.doc_get(keys[0])["severity"], 5)
+        out = alerts.maybe_alert({"severity": 2},
+                                 types.SimpleNamespace(data_dir="/tmp/x"))
         self.assertFalse(out["alerted"])
-        self.assertEqual(len(self.state["alerts"]), 1)
+        self.assertEqual(len(_db.doc_keys("alert:")), 1)
 
 
 if __name__ == "__main__":

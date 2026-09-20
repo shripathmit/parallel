@@ -1,3 +1,10 @@
+-- ============================================================================
+-- PARKED 2026-09-20: the 8-table relational schema below is NOT used.
+-- parallel now persists to ONE schemaless table (parallel_docs, created
+-- automatically by the app on first use), so unfinished features never need
+-- migrations. Kept here for reference only -- do NOT run this.
+-- ============================================================================
+--
 -- parallel: persistent storage for the FDA change-intelligence pipeline.
 --
 -- Run this once in the Supabase SQL editor of the dedicated parallel project:
